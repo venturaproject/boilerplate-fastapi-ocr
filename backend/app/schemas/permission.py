@@ -11,3 +11,12 @@ class PermissionOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class PermissionListResponse(BaseModel):
+    data: list[PermissionOut]
+    groups: list[str]
+    current_page: int
+    last_page: int
+    per_page: int
+    total: int

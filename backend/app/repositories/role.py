@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -8,11 +8,28 @@ from app.models.permission import Permission
 from app.models.role import Role
 
 
-async def list_roles(db: AsyncSession) -> list[Role]:
+async def list_roles(
+    db: AsyncSession,
+    *,
+    search: str | None = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> tuple[list[Role], int]:
+    query = select(Role)
+    if search:
+        query = query.where(Role.name.ilike(f"%{search}%"))
+
+    total = (
+        await db.execute(select(func.count()).select_from(query.subquery()))
+    ).scalar_one()
+
     result = await db.execute(
-        select(Role).options(selectinload(Role.permissions)).order_by(Role.name)
+        query.options(selectinload(Role.permissions), selectinload(Role.users))
+        .order_by(Role.name)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
     )
-    return list(result.scalars().all())
+    return list(result.scalars().all()), int(total)
 
 
 async def get_role_by_id(db: AsyncSession, role_id: uuid.UUID) -> Role | None:

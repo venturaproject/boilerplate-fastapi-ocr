@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/pagination"
 import { pathFor } from "@/lib/app-routes"
 import { rolesApi } from "@/services/roles-api"
+import { AccessControlTabs } from "@/pages/users/access-control-tabs"
 
 interface RolesPageProps extends PageProps {
   roles: PaginatedData<Role>
@@ -111,6 +112,7 @@ export default function RolesIndex({ roles, filters: initialFilters = {} }: Role
     <AuthenticatedLayout title={t('roles') || 'Roles'}>
       <Main>
         <div className="grid flex-1 items-start gap-4 md:gap-8">
+          <AccessControlTabs />
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

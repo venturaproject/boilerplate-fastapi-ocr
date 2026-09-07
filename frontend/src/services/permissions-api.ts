@@ -11,7 +11,9 @@ export const permissionsApi = {
   },
 
   async all(params?: Record<string, string | number>) {
-    const { data } = await axios.get(API_ENDPOINTS.permissions, { params })
+    const { data } = await axios.get(API_ENDPOINTS.permissions, {
+      params: { per_page: 1000, ...params },
+    })
     return normalizeCollectionPayload<Record<string, unknown>>(data)
   },
 

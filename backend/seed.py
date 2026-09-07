@@ -10,7 +10,7 @@ import sys
 # Allow running as `uv run python seed.py` from /app/backend
 sys.path.insert(0, os.path.dirname(__file__))
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -69,6 +69,15 @@ async def seed(db: AsyncSession) -> None:
         perm = await get_or_create_permission(db, name)
         perm_objects[name] = perm
     await db.flush()
+
+    # Prune permissions that are no longer part of the canonical set.
+    stale = (
+        await db.execute(select(Permission).where(Permission.name.notin_(PERMISSIONS)))
+    ).scalars().all()
+    if stale:
+        await db.execute(delete(Permission).where(Permission.id.in_([p.id for p in stale])))
+        await db.flush()
+        print(f"  pruned {len(stale)} stale permission(s): {', '.join(p.name for p in stale)}")
     print(f"  {len(PERMISSIONS)} permissions ready.")
 
     print("Seeding roles...")

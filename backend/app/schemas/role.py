@@ -16,9 +16,19 @@ class RoleOut(BaseModel):
     name: str
     guard_name: str
     permissions: list[PermissionSimple] = []
+    permissions_count: int = 0
+    users_count: int = 0
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RoleListResponse(BaseModel):
+    data: list[RoleOut]
+    current_page: int
+    last_page: int
+    per_page: int
+    total: int
 
 
 class CreateRoleRequest(BaseModel):

@@ -32,5 +32,13 @@ class Role(Base):
         "User", secondary="user_roles", back_populates="roles", lazy="selectin"
     )
 
+    @property
+    def permissions_count(self) -> int:
+        return len(self.permissions)
+
+    @property
+    def users_count(self) -> int:
+        return len(self.users)
+
     def __repr__(self) -> str:
         return f"<Role {self.name}>"

@@ -30,7 +30,9 @@ export default function PermissionsRoute() {
   })
 
   const permissions = normalizePaginatedPayload(listData)
-  const groups = Array.from(new Set((permissions.data || []).map((p: any) => p.name.split('.')[0] || 'other')))
+  const groups: string[] =
+    (listData?.groups as string[] | undefined) ??
+    Array.from(new Set((permissions.data || []).map((p: any) => p.name.split('.')[0] || 'other')))
 
   if (isEdit) {
     if (permissionLoading) return <RoutePending />

@@ -19,11 +19,8 @@ import {
   IconUserOff,
   IconUsers,
   IconChartBar,
-  IconPhone,
   IconMail,
   IconArticle,
-  IconShield,
-  IconKey,
   IconScan,
 } from '@tabler/icons-react'
 import {
@@ -84,18 +81,6 @@ export const sidebarData: SidebarData = {
           url: '/admin/users',
           icon: IconUsers,
           permission: 'users.view',
-        },
-        {
-          title: 'Roles',
-          url: '/admin/roles',
-          icon: IconShield,
-          permission: 'roles.view',
-        },
-        {
-          title: 'Permisos',
-          url: '/admin/permissions',
-          icon: IconKey,
-          permission: 'permissions.view',
         },
       ],
     },

@@ -61,6 +61,14 @@ function normalizeParams(params?: RouteParams): Record<string, any> {
   return { id: params }
 }
 
+function toQueryString(params: Record<string, any>): string {
+  const entries = Object.entries(params).filter(
+    ([, v]) => v !== undefined && v !== null && v !== '',
+  )
+  if (!entries.length) return ''
+  return '?' + new URLSearchParams(entries.map(([k, v]) => [k, String(v)])).toString()
+}
+
 export function pathFor(name?: string, params?: RouteParams): string {
   if (!name) return window.location.pathname
   const entry = appRouteMap[name]
@@ -68,7 +76,11 @@ export function pathFor(name?: string, params?: RouteParams): string {
     console.warn(`[pathFor] Unknown route name: "${name}"`)
     return '#'
   }
-  return typeof entry === 'function' ? entry(normalizeParams(params)) : entry
+  if (typeof entry === 'function') return entry(normalizeParams(params))
+  // Static path: an object of params becomes a query string (e.g. list filters).
+  const isObject =
+    params !== null && params !== undefined && typeof params === 'object' && !Array.isArray(params)
+  return isObject ? entry + toQueryString(params as Record<string, any>) : entry
 }
 
 pathFor.current = (name: string): boolean => {

@@ -11,7 +11,7 @@ export const rolesApi = {
   },
 
   async all(params?: Record<string, string | number>) {
-    const { data } = await axios.get(API_ENDPOINTS.roles, { params })
+    const { data } = await axios.get(API_ENDPOINTS.roles, { params: { per_page: 1000, ...params } })
     return normalizeCollectionPayload<Record<string, unknown>>(data)
   },
 

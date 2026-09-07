@@ -30,6 +30,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useState } from 'react'
 import { usersApi } from '@/services/users-api'
 import { ApiClientsTab } from './components/api-clients-tab'
+import { AccessControlTabs } from './access-control-tabs'
 
 interface UserStats {
   total: number
@@ -165,6 +166,8 @@ export default function UsersPage({
             <h2 className="text-2xl font-bold tracking-tight">{t('user_list') || 'Listado de Usuarios'}</h2>
             <p className="text-muted-foreground">{t('manage_users_and_roles') || 'Gestiona los usuarios y sus permisos'}</p>
           </div>
+
+          <AccessControlTabs />
 
           {/* Top-level tab switcher: above the cards */}
           <Tabs

@@ -1,3 +1,4 @@
+import math
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -7,15 +8,28 @@ from app.database import get_db
 from app.dependencies import require_permission
 from app.exceptions import ConflictException, NotFoundException
 from app.repositories import role as role_repo
-from app.schemas.role import CreateRoleRequest, RoleOut, UpdateRoleRequest
+from app.schemas.role import CreateRoleRequest, RoleListResponse, RoleOut, UpdateRoleRequest
 
 router = APIRouter(prefix="/api/v1/roles", tags=["roles"])
 
 
 @router.get("", dependencies=[require_permission("roles.view")])
-async def list_roles(db: AsyncSession = Depends(get_db)):
-    roles = await role_repo.list_roles(db)
-    return [RoleOut.model_validate(r) for r in roles]
+async def list_roles(
+    page: int = 1,
+    per_page: int = 20,
+    search: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> RoleListResponse:
+    per_page = max(1, min(per_page, 1000))
+    page = max(1, page)
+    roles, total = await role_repo.list_roles(db, search=search, page=page, per_page=per_page)
+    return RoleListResponse(
+        data=[RoleOut.model_validate(r) for r in roles],
+        current_page=page,
+        last_page=max(1, math.ceil(total / per_page)),
+        per_page=per_page,
+        total=total,
+    )
 
 
 @router.post("", dependencies=[require_permission("roles.create")], status_code=201)

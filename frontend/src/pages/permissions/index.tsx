@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/pagination"
 import { pathFor } from "@/lib/app-routes"
 import { permissionsApi } from "@/services/permissions-api"
+import { AccessControlTabs } from "@/pages/users/access-control-tabs"
 
 interface PermissionsPageProps extends PageProps {
   permissions: PaginatedData<Permission>
@@ -117,6 +118,7 @@ export default function PermissionsIndex({ permissions, groups: initialGroups = 
     <AuthenticatedLayout title={t('permissions') || 'Permissions'}>
       <Main>
         <div className="grid flex-1 items-start gap-4 md:gap-8">
+          <AccessControlTabs />
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

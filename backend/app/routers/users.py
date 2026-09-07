@@ -53,7 +53,7 @@ async def list_users(
 ):
     users, total = await user_repo.list_users(db, page=page, per_page=per_page, search=search, status=status, role=role)
     stats = await user_repo.count_users_by_status(db)
-    all_roles = await list_roles(db)
+    all_roles, _ = await list_roles(db, per_page=1000)
     last_page = max(1, math.ceil(total / per_page))
 
     return UserListResponse(
