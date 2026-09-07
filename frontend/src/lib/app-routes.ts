@@ -49,34 +49,10 @@ export const appRouteMap: Record<string, RouteValue> = {
   'admin.permissions.update': (p) => `/admin/permissions/${p.permission ?? p.id}`,
   'admin.permissions.destroy': (p) => `/admin/permissions/${p.permission ?? p.id}`,
 
-  'admin.telefonos.index': '/admin/telefonos',
-  'admin.telefonos.show': (p) => `/admin/telefonos/${p.id}`,
-  'admin.telefonos.edit': (p) => `/admin/telefonos/${p.id}/edit`,
-  'admin.telefonos.update': (p) => `/admin/telefonos/${p.id}`,
-  'admin.telefonos.bulk-export': '/admin/telefonos/bulk-export',
-  'admin.telefonos.bulk-desactivar': '/admin/telefonos/bulk-desactivar',
-  'admin.telefonos.sync': '/admin/telefonos/sync',
-  'admin.telefonos.desactivar': (p) => `/admin/telefonos/${p.id}/desactivar`,
-  'admin.telefonos.actions.store': (p) => `/admin/telefonos/${p.id}/actuaciones`,
-  'admin.telefonos.actions.update': (p) => `/admin/telefonos/actuaciones/${p.actionId}`,
-  'admin.telefonos.actions.delete': (p) => `/admin/telefonos/actuaciones/${p.actionId}`,
-
-  'api.device-models': (p) => `/api/v1/dispositivos/modelos/?brand=${encodeURIComponent(p.brand ?? '')}`,
-
-  'admin.dispositivos.index': '/admin/dispositivos',
-  'admin.dispositivos.create': '/admin/dispositivos/create',
-  'admin.dispositivos.store': '/admin/dispositivos',
-  'admin.dispositivos.show': (p) => `/admin/dispositivos/${p.id}`,
-  'admin.dispositivos.edit': (p) => `/admin/dispositivos/${p.id}/edit`,
-  'admin.dispositivos.update': (p) => `/admin/dispositivos/${p.id}`,
-  'admin.dispositivos.bulk-export': '/admin/dispositivos/bulk-export',
-  'admin.dispositivos.deliver': (p) => `/admin/dispositivos/${p.id}/deliver`,
-
-  'admin.trabajadores.index': '/admin/trabajadores',
-  'admin.trabajadores.show': (p) => `/admin/trabajadores/${p.id}`,
-  'admin.trabajadores.bulk-export': '/admin/trabajadores/bulk-export',
-
-  'admin.consulta-asistida.buscar': '/admin/consulta-asistida/buscar',
+  'admin.ocr.index': '/admin/ocr',
+  'admin.ocr.jobs': '/admin/ocr/jobs',
+  'admin.documents.index': '/admin/documents',
+  'admin.documents.show': (p) => `/admin/documents/${p.id}`,
 }
 
 function normalizeParams(params?: RouteParams): Record<string, any> {

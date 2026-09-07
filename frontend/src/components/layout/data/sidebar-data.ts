@@ -39,7 +39,7 @@ export const sidebarData: SidebarData = {
     {
       name: 'Tradivel',
       logo: TradivelLogo,
-      plan: 'Plataforma E-commerce',
+      plan: 'OCR API',
     },
   ],
   navGroups: [
@@ -73,21 +73,6 @@ export const sidebarData: SidebarData = {
           url: '/admin/documents',
           icon: IconArticle,
           permission: 'documents.view',
-        },
-      ],
-    },
-    {
-      title: 'Recursos Humanos',
-      items: [
-        {
-          title: 'Trabajadores',
-          url: '/admin/trabajadores',
-          icon: IconUsers,
-        },
-        {
-          title: 'Teléfonos',
-          url: '/admin/telefonos',
-          icon: IconPhone,
         },
       ],
     },

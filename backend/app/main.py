@@ -19,19 +19,14 @@ from app.routers import (
     auth,
     csrf,
     dashboard,
-    dispositivos,
     documents,
     ext_ocr,
-    external,
     external_auth,
     notifications,
     ocr,
     permissions,
     roles,
-    telefonos,
-    trabajadores,
     users,
-    webhooks,
 )
 from app.routers import (
     settings as settings_router,
@@ -95,17 +90,12 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(roles.router)
 app.include_router(permissions.router)
-app.include_router(trabajadores.router)
-app.include_router(telefonos.router)
-app.include_router(dispositivos.router)
 app.include_router(documents.router)
 app.include_router(dashboard.router)
 app.include_router(api_clients.router)
 app.include_router(notifications.router)
 app.include_router(settings_router.router)
 app.include_router(external_auth.router)
-app.include_router(external.router)
-app.include_router(webhooks.router)
 app.include_router(ocr.router)
 app.include_router(ext_ocr.router)
 

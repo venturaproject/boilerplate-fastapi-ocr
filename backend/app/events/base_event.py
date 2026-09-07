@@ -10,7 +10,7 @@ class DomainEvent:
     """Hecho de negocio ya ocurrido.
 
     Las subclases añaden sus campos. ``name()`` es el identificador estable que
-    usan el outbox y los subscribers (p.ej. ``"trabajador.synchronized_from_erp"``).
+    usan el outbox y los subscribers (p.ej. ``"document.classified"``).
     """
 
     aggregate_id: str

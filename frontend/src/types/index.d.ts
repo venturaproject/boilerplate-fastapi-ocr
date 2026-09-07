@@ -9,21 +9,6 @@ export interface User {
     permissions?: string[];
 }
 
-export interface Phone {
-    id: number;
-    telefono: string;
-    tipo?: string | null;
-    plan?: string | null;
-    pin?: string | null;
-    puk?: string | null;
-    nplan?: string | null;
-    estado_telefonos_id: number;
-    notas?: string | null;
-    tipologias_id?: number | null;
-    created_at?: string;
-    updated_at?: string;
-}
-
 export interface Role {
     id: number;
     name: string;

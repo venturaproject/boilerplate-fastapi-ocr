@@ -17,9 +17,9 @@ class TranslatorNotFound(Exception):
 def inbox_translator(source: str, event_name: str) -> Callable[[Translator], Translator]:
     """Registra una función ``payload -> Command`` para un mensaje entrante.
 
-        @inbox_translator("synergy", "employee.upserted")
+        @inbox_translator("erp", "invoice.received")
         def _(payload: dict) -> Command:
-            return SyncTrabajadorFromERP(**payload)
+            return IngestInvoice(**payload)
     """
 
     def decorator(fn: Translator) -> Translator:

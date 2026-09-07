@@ -21,7 +21,7 @@ import { PageProps } from "@/types"
 import { permissionsApi } from "@/services/permissions-api"
 
 const COMMON_GROUPS = [
-  'users', 'roles', 'permissions', 'telefonos', 'dispositivos', 'trabajadores', 'settings', 'dashboard'
+  'users', 'roles', 'permissions', 'ocr', 'documents', 'api_clients', 'settings', 'dashboard'
 ]
 
 const COMMON_ACTIONS = [

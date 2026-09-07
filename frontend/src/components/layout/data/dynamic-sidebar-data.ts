@@ -18,12 +18,10 @@ import {
   IconUserOff,
   IconUsers,
   IconChartBar,
-  IconPhone,
   IconMail,
   IconArticle,
   IconShield,
   IconKey,
-  IconDeviceDesktop,
   IconScan,
   IconListDetails,
   IconFileText,
@@ -45,7 +43,7 @@ export const DynamicSidebarData = () => {
       {
         name: 'Tradivel',
         logo: TradivelLogo,
-        plan: t('ecommerce_platform'),
+        plan: 'OCR API',
       },
     ],
     navGroups: [
@@ -79,29 +77,6 @@ export const DynamicSidebarData = () => {
             url: '/admin/documents',
             icon: IconFileText,
             permission: 'documents.view',
-          },
-        ],
-      },
-      {
-        title: 'Recursos Humanos',
-        items: [
-          {
-            title: 'Dispositivos',
-            url: '/admin/dispositivos',
-            icon: IconDeviceDesktop,
-            permission: 'dispositivos.view',
-          },
-          {
-            title: 'Teléfonos',
-            url: '/admin/telefonos',
-            icon: IconPhone,
-            permission: 'telefonos.view',
-          },
-          {
-            title: 'Trabajadores',
-            url: '/admin/trabajadores',
-            icon: IconUsers,
-            permission: 'trabajadores.view',
           },
         ],
       },

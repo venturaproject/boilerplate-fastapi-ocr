@@ -26,32 +26,6 @@ export const endpoints = {
     detail: (id: string | number) => `${API_BASE}/permissions/${id}`,
   },
   dashboard: `${API_BASE}/dashboard/`,
-  dispositivos: {
-    list:       `${API_BASE}/dispositivos/`,
-    detail:     (id: string | number) => `${API_BASE}/dispositivos/${id}`,
-    deliver:    (id: string | number) => `${API_BASE}/dispositivos/${id}/deliver`,
-    bulkExport: `${API_BASE}/dispositivos/bulk-export/`,
-  },
-  deviceModels: {
-    byBrand: (brand: string) => `${API_BASE}/dispositivos/modelos?brand=${encodeURIComponent(brand)}`,
-  },
-  telefonos: {
-    list:           `${API_BASE}/telefonos/`,
-    detail:         (id: string | number) => `${API_BASE}/telefonos/${id}`,
-    desactivar:     (id: string | number) => `${API_BASE}/telefonos/${id}/desactivar`,
-    sync:           `${API_BASE}/telefonos/sync/`,
-    bulkExport:     `${API_BASE}/telefonos/bulk-export/`,
-    bulkDesactivar: `${API_BASE}/telefonos/bulk-desactivar/`,
-    actions: {
-      store:  (id: string | number) => `${API_BASE}/telefonos/${id}/actuaciones`,
-      detail: (actionId: string | number) => `${API_BASE}/telefonos/actuaciones/${actionId}`,
-    },
-  },
-  trabajadores: {
-    list:       `${API_BASE}/trabajadores/`,
-    detail:     (id: string | number) => `${API_BASE}/trabajadores/${id}`,
-    bulkExport: `${API_BASE}/trabajadores/bulk-export/`,
-  },
   notifications: {
     list:        `${API_BASE}/notifications`,
     detail:      (id: string | number) => `${API_BASE}/notifications/${id}`,
@@ -60,9 +34,6 @@ export const endpoints = {
   },
   upload: {
     presignedUrl: `${API_BASE}/upload/presigned-url`,
-  },
-  consultaAsistida: {
-    query: `${API_BASE}/consulta-asistida`,
   },
   settings: {
     appearance:    `${API_BASE}/settings/appearance`,

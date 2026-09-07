@@ -8,6 +8,12 @@ Cualquier aplicación externa puede enviar **imágenes o PDFs** y recibir el **t
 reconocido** — de forma **síncrona** (respuesta inmediata) o **asíncrona** (cola de
 trabajos + webhook opcional).
 
+El dominio se centra en el OCR: **usuarios / roles / permisos**, la **API externa**
+(`api_clients`), los **trabajos** (`ocr_jobs`) y el **registro de documentos** (`documents`).
+El patrón vertical-slice (`app/domain/<x>/` + `app/repositories/<x>.py` +
+`app/routers/<x>.py`) y la infraestructura de eventos (CQRS · outbox · inbox) quedan como
+puntos de extensión.
+
 ## Puesta en marcha
 
 ```bash

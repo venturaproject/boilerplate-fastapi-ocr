@@ -4,6 +4,6 @@ command/query handlers, subscribers y traductores del inbox en los buses.
 Lo importan `app.main` (API) y `app.events.worker` (worker) al arrancar.
 """
 
-from app.domain import dispositivo, document, telefono, trabajador
+from app.domain import document
 
-__all__ = ["dispositivo", "document", "telefono", "trabajador"]
+__all__ = ["document"]

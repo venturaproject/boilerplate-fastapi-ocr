@@ -1,38 +1,22 @@
 from pydantic import BaseModel
 
-
-class WorkerStats(BaseModel):
-    activos: int
-    conTelefono: int
-    incorporadosEsteMes: int
-    conImei: int
+from app.schemas.document import DocumentStats
+from app.schemas.ocr import OcrStats
 
 
-class PhoneStats(BaseModel):
-    total: int
-    activos: int
-    congelados: int
-    bajas: int
-    sinDatos: int
-
-
-class RecentDevice(BaseModel):
+class RecentDocument(BaseModel):
     id: str
-    numero: str | None = None
-    grupo: str | None = None
-    updated_at: str
-    marca: str | None = None
-    modelo: str | None = None
-    employee_nombre: str | None = None
-
-
-class MonthlyWorkerStat(BaseModel):
-    month: str
-    incorporations: int
+    original_filename: str | None = None
+    mode: str
+    status: str
+    doc_type: str | None = None
+    lang: str
+    page_count: int | None = None
+    processing_ms: int | None = None
+    created_at: str
 
 
 class DashboardResponse(BaseModel):
-    stats: WorkerStats
-    phoneStats: PhoneStats
-    recentDevices: list[RecentDevice]
-    monthlyWorkerStats: list[MonthlyWorkerStat]
+    documents: DocumentStats
+    jobs: OcrStats
+    recent: list[RecentDocument]

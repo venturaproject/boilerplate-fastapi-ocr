@@ -53,7 +53,6 @@ async def _issue_token(name: str, scopes: list[str]) -> str:
 async def _truncate() -> None:
     async with AsyncSessionLocal() as s, s.begin():
         await s.execute(text("TRUNCATE " + ", ".join(_TABLES)))
-        await s.execute(text("DELETE FROM trabajadores WHERE synergy_res_id >= 900000"))
 
 
 @pytest.fixture(autouse=True)
@@ -116,14 +115,6 @@ async def admin_client(client: AsyncClient) -> AsyncIterator[AsyncClient]:
     )
     assert r.status_code == 200, r.text
     yield client
-
-
-@pytest.fixture
-async def bearer_token() -> AsyncIterator[str]:
-    raw = await _issue_token("test-webhook", ["webhooks:write"])
-    yield raw
-    async with AsyncSessionLocal() as s, s.begin():
-        await s.execute(text("DELETE FROM api_clients WHERE name = 'test-webhook'"))
 
 
 @pytest.fixture

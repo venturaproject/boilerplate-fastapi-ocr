@@ -3,21 +3,39 @@ import { axios } from '@/lib/axios'
 import { API_ENDPOINTS } from '@/config'
 import Dashboard from '@/pages/dashboard/index'
 
-const DEFAULT_STATS = { activos: 0, conTelefono: 0, incorporadosEsteMes: 0, conImei: 0 }
-const DEFAULT_PHONE = { total: 0, activos: 0, congelados: 0, bajas: 0, sinDatos: 0 }
+const EMPTY_DOC_STATS = {
+  total: 0,
+  last_24h: 0,
+  by_mode: {},
+  by_status: {},
+  by_doc_type: {},
+  processing_ms_avg: null,
+  processing_ms_p95: null,
+}
+
+const EMPTY_JOB_STATS = {
+  pending: 0,
+  processing: 0,
+  done: 0,
+  error: 0,
+  oldest_pending_age_seconds: null,
+  processing_ms_avg: null,
+  processing_ms_p95: null,
+  by_doc_type: {},
+}
 
 export default function DashboardRoute() {
   const { data } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => axios.get(API_ENDPOINTS.dashboard).then((r) => r.data),
+    refetchInterval: 15000,
   })
 
   return (
     <Dashboard
-      stats={data?.stats ?? DEFAULT_STATS}
-      phoneStats={data?.phoneStats ?? DEFAULT_PHONE}
-      recentDevices={data?.recentDevices ?? []}
-      monthlyWorkerStats={data?.monthlyWorkerStats ?? []}
+      documents={data?.documents ?? EMPTY_DOC_STATS}
+      jobs={data?.jobs ?? EMPTY_JOB_STATS}
+      recent={data?.recent ?? []}
     />
   )
 }

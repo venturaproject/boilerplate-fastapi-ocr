@@ -2,9 +2,7 @@ export const API_ENDPOINTS = {
   users: '/api/v1/users',
   roles: '/api/v1/roles',
   permissions: '/api/v1/permissions',
-  telefonos: '/api/v1/telefonos',
-  dispositivos: '/api/v1/dispositivos',
-  trabajadores: '/api/v1/trabajadores',
+  documents: '/api/v1/documents',
   dashboard: '/api/v1/dashboard',
   auth: {
     login: '/api/v1/auth/login',

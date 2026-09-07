@@ -16,9 +16,6 @@ import DashboardRoute from '@/routes/dashboard-route'
 import UsersRoute from '@/routes/users-route'
 import RolesRoute from '@/routes/roles-route'
 import PermissionsRoute from '@/routes/permissions-route'
-import TelefonosRoute from '@/routes/telefonos-route'
-import DispositivosRoute from '@/routes/dispositivos-route'
-import TrabajadoresRoute from '@/routes/trabajadores-route'
 import SettingsRoute from '@/routes/settings-route'
 import OcrRoute from '@/routes/ocr-route'
 import DocumentsRoute from '@/routes/documents-route'
@@ -60,21 +57,6 @@ export const privateRoutes: RouteObject[] = [
   { path: '/admin/permissions', element: <PermissionsRoute /> },
   { path: '/admin/permissions/create', element: <PermissionsRoute /> },
   { path: '/admin/permissions/:id/edit', element: <PermissionsRoute /> },
-
-  // Telefonos module
-  { path: '/admin/telefonos', element: <TelefonosRoute /> },
-  { path: '/admin/telefonos/:id', element: <TelefonosRoute /> },
-  { path: '/admin/telefonos/:id/edit', element: <TelefonosRoute /> },
-
-  // Dispositivos module
-  { path: '/admin/dispositivos', element: <DispositivosRoute /> },
-  { path: '/admin/dispositivos/create', element: <DispositivosRoute /> },
-  { path: '/admin/dispositivos/:id', element: <DispositivosRoute /> },
-  { path: '/admin/dispositivos/:id/edit', element: <DispositivosRoute /> },
-
-  // Trabajadores module
-  { path: '/admin/trabajadores', element: <TrabajadoresRoute /> },
-  { path: '/admin/trabajadores/:id', element: <TrabajadoresRoute /> },
 
   // Settings
   { path: '/admin/settings', element: <SettingsRoute /> },

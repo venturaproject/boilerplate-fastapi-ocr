@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     admin_name: str = "Admin"
 
     # Dashboard
-    dashboard_recent_devices_limit: int = 5
+    dashboard_recent_documents_limit: int = 10
 
     # Document registry (every OCR API call is recorded in the `documents` table)
     document_text_excerpt_chars: int = 500  # 0 -> store no text at all
