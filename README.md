@@ -226,6 +226,7 @@ en el worker de OCR junto con la de jobs.
 
 | Variable | Def. | Descripción |
 |---|---|---|
+| `STORAGE_BACKEND` | `local` | `local` (volumen) o `s3` (`S3_BUCKET`, `S3_ENDPOINT_URL`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`) |
 | `OCR_ENGINE` | `paddle` | `paddle` · `tesseract` · `fake` |
 | `OCR_LANG` | `es` | idioma por defecto |
 | `OCR_LANG_AUTODETECT` | `false` | si no se pasa `lang`, detectarlo del texto y reejecutar |
@@ -293,8 +294,8 @@ Arquitectura OCR:
 - **DNS rebinding**: el guarda SSRF de callbacks resuelve el host y luego httpx vuelve a
   resolver al conectar. Cierre completo = transport de httpx con IP fijada. Mitígalo con
   política de egress de red en entornos hostiles.
-- **Storage en disco local**: backend y worker comparten un volumen (`media_data`). Para
-  multi-nodo hace falta almacenamiento de objetos (S3).
+- **Storage por defecto en disco**: `STORAGE_BACKEND=local` comparte el volumen
+  `media_data` entre backend y worker. Para multi-nodo, `STORAGE_BACKEND=s3` (extra `s3`).
 - **Callbacks sin dead-letter**: 2 reintentos inmediatos; si fallan, queda `callback_status`
   pero no hay reenvío automático posterior.
 - **paddleocr pin en 2.x**: `engine.py` ya soporta la API 3.x, pero paddle 3.x falla en
@@ -310,16 +311,16 @@ Ordenadas por relación valor/esfuerzo:
 
 1. *(hecho)* **Extracción de campos por tipo** (`OCR_EXTRACTOR=rules`) — falta un
    backend `llm` con proveedor real.
-2. **Almacenamiento de objetos (S3/MinIO)** para las subidas — desacopla worker del disco
-   compartido y permite escalar el worker horizontalmente de verdad.
+2. *(hecho)* **Storage enchufable** `STORAGE_BACKEND=local|s3` — `S3Storage` (boto3, extra
+   `s3`) desacopla el worker del disco compartido.
 3. **Observabilidad** — logs JSON estructurados + `/metrics` Prometheus (histograma de
    latencia OCR, profundidad de cola, hit‑rate de caché, errores de motor).
 4. **Dead‑letter de callbacks** — backoff con más reintentos, registro de intentos por job y
    endpoint para reenviar manualmente.
 5. **Cuotas y medición por cliente** — rate‑limit y cuota mensual de páginas por
    `api_client` (base para facturación); los datos ya están en `documents`.
-6. *(hecho)* **Formatos de salida** `?format=text|hocr|alto|pdf`; queda el `pdf` de un job
-   (necesita el original → depende del storage enchufable).
+6. *(hecho)* **Formatos de salida** `?format=text|hocr|alto|pdf` (el `pdf` de un job
+   re-lee el original vía el storage).
 7. *(hecho)* **Motor alternativo Tesseract** (`OCR_ENGINE=tesseract`); queda abrir un
    adaptador a un OCR cloud tras la misma interfaz `OcrEngine`.
 8. *(hecho)* **Detección automática de idioma** (`OCR_LANG_AUTODETECT`).
