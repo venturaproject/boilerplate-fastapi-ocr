@@ -1,0 +1,80 @@
+import uuid
+
+from fastapi import APIRouter, Depends, Form, UploadFile
+from fastapi import File as FileParam
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.database import get_db
+from app.dependencies import ExtClientContext, require_scope
+from app.exceptions import NotFoundException
+from app.ratelimit import rate_limit
+from app.repositories import ocr_job as ocr_repo
+from app.schemas.ocr import OcrJobListResponse, OcrJobOut, OcrResult
+from app.services.ocr.jobs import create_ocr_job, run_sync_ocr
+
+router = APIRouter(prefix="/api/ext/ocr", tags=["external-ocr"])
+
+_ocr_limit, _ocr_per = settings.throttle(settings.throttle_ocr)
+_ocr_rl = Depends(rate_limit("ext_ocr", _ocr_limit, _ocr_per))
+
+
+@router.post("", dependencies=[_ocr_rl])
+async def ext_ocr_sync(
+    file: UploadFile = FileParam(...),
+    lang: str | None = Form(default=None),
+    ctx: ExtClientContext = require_scope("ocr:write"),
+) -> OcrResult:
+    """Synchronous OCR: send a file, get the recognised text back in the response."""
+    return await run_sync_ocr(file, lang)
+
+
+@router.post("/jobs", status_code=202, dependencies=[_ocr_rl])
+async def ext_ocr_create_job(
+    file: UploadFile = FileParam(...),
+    lang: str | None = Form(default=None),
+    callback_url: str | None = Form(default=None),
+    ctx: ExtClientContext = require_scope("ocr:write"),
+    db: AsyncSession = Depends(get_db),
+) -> OcrJobOut:
+    """Async OCR: queue a job, poll `GET /jobs/{id}` or receive a `callback_url` POST."""
+    job = await create_ocr_job(
+        db,
+        file,
+        lang=lang,
+        callback_url=callback_url,
+        api_client_id=ctx.client.id,
+    )
+    return OcrJobOut.model_validate(job)
+
+
+@router.get("/jobs", dependencies=[_ocr_rl])
+async def ext_ocr_list_jobs(
+    page: int = 1,
+    per_page: int = 20,
+    ctx: ExtClientContext = require_scope("ocr:read"),
+    db: AsyncSession = Depends(get_db),
+) -> OcrJobListResponse:
+    per_page = max(1, min(per_page, 100))
+    page = max(1, page)
+    items, total = await ocr_repo.list_jobs(
+        db, api_client_id=ctx.client.id, page=page, per_page=per_page
+    )
+    return OcrJobListResponse(
+        data=[OcrJobOut.model_validate(j) for j in items],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@router.get("/jobs/{job_id}", dependencies=[_ocr_rl])
+async def ext_ocr_get_job(
+    job_id: uuid.UUID,
+    ctx: ExtClientContext = require_scope("ocr:read"),
+    db: AsyncSession = Depends(get_db),
+) -> OcrJobOut:
+    job = await ocr_repo.get_job(db, job_id, api_client_id=ctx.client.id)
+    if not job:
+        raise NotFoundException("Job no encontrado")
+    return OcrJobOut.model_validate(job)

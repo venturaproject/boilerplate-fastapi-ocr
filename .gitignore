@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+backend/.venv/
+*.egg-info/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+.pnpm-store/
+frontend/dist/
+frontend/.vite/
+
+# Env
+.env
+!.env.example
+
+# Media / uploads / OCR storage
+backend/media/
+!backend/media/.gitkeep
+
+# PaddleOCR / PaddleX model cache
+.paddlex/
+.paddleocr/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
