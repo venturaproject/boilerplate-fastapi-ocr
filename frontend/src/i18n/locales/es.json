@@ -249,6 +249,7 @@
     "no_permissions": "Sin permisos",
     "users_count_label": "{count} usuarios",
     "showing_roles": "Mostrando {start}-{end} de {total} roles",
+    "showing_range": "Mostrando {start}-{end} de {total}",
     "showing_zero_roles": "Mostrando 0 roles",
     "permissions": "Permisos",
     "manage_permissions": "Gestiona los permisos de la aplicación",

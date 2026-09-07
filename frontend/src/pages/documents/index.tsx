@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { AuthenticatedLayout } from '@/layouts'
 import { Main } from '@/components/layout'
 import { MetricStatCard } from '@/components/metric-stat-card'
-import { PaginationFooter } from '@/components/pagination-footer'
+import { DataTable, DataTablePagination, DataTableViewOptions } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,14 +17,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -33,28 +27,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Clock, FileText, Layers, Loader2, RefreshCw, Timer, Trash2 } from 'lucide-react'
+import { Clock, FileText, Layers, Loader2, RefreshCw, Timer, Trash2, X } from 'lucide-react'
+import { useI18n } from '@/i18n/context'
+import { useTableFilters } from '@/hooks/use-table-filters'
+import { useColumnReorder } from '@/hooks/use-column-reorder'
 import { usePermission } from '@/hooks/use-permission'
-import {
-  documentsApi,
-  type DocumentMode,
-  type DocumentRow,
-  type DocumentStatus,
-} from '@/services/documents-api'
+import { documentsApi, type DocumentRow } from '@/services/documents-api'
 import { DOC_TYPE_LABEL } from '@/pages/ocr/index'
+import {
+  buildDocumentsColumns,
+  documentColumnLabels,
+  MODE_LABEL,
+  STATUS_VARIANT,
+} from './columns'
 
-const PER_PAGE = 20
-
-const MODE_LABEL: Record<DocumentMode, string> = {
-  sync: 'Síncrono',
-  async: 'Asíncrono',
-  classify: 'Clasificación',
-}
-
-const STATUS_VARIANT: Record<DocumentStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
-  pending: 'outline',
-  done: 'default',
-  error: 'destructive',
+interface DocFilters {
+  search?: string
+  mode?: string
+  doc_type?: string
+  status?: string
+  page?: string
+  per_page?: string
+  [key: string]: string | undefined
 }
 
 function formatBytes(n: number): string {
@@ -64,34 +58,42 @@ function formatBytes(n: number): string {
 }
 
 export default function DocumentsPage() {
+  const { t } = useI18n()
   const queryClient = useQueryClient()
   const { can } = usePermission()
   const canDelete = can('documents.delete')
-
-  const [search, setSearch] = useState('')
-  const [mode, setMode] = useState('')
-  const [docType, setDocType] = useState('')
-  const [status, setStatus] = useState('')
-  const [page, setPage] = useState(1)
+  const [searchParams] = useSearchParams()
+  const urlFilters = Object.fromEntries(searchParams.entries()) as DocFilters
   const [selected, setSelected] = useState<string | null>(null)
 
-  const setFilter = (setter: (v: string) => void) => (value: string) => {
-    setter(value)
-    setPage(1)
-  }
+  const {
+    filters,
+    searchTerm,
+    navigate: navigateFilters,
+    handleSearch,
+    handlePageChange,
+    handlePerPageChange,
+    perPage,
+  } = useTableFilters<DocFilters>({
+    basePath: '/admin/documents',
+    initialFilters: urlFilters,
+    initialPerPage: Number(urlFilters.per_page) || 20,
+  })
 
-  const filters = {
-    search: search || undefined,
-    mode: mode || undefined,
-    doc_type: docType || undefined,
-    status: status || undefined,
-    page,
-    per_page: PER_PAGE,
-  }
+  const page = Number(urlFilters.page) || 1
+  const currentPerPage = Number(urlFilters.per_page) || perPage
 
   const listQuery = useQuery({
-    queryKey: ['documents', filters],
-    queryFn: () => documentsApi.list(filters),
+    queryKey: ['documents', urlFilters],
+    queryFn: () =>
+      documentsApi.list({
+        page,
+        per_page: currentPerPage,
+        search: urlFilters.search,
+        mode: urlFilters.mode,
+        doc_type: urlFilters.doc_type,
+        status: urlFilters.status,
+      }),
     refetchInterval: (query) =>
       query.state.data?.data.some((d) => d.status === 'pending') ? 3000 : false,
   })
@@ -121,6 +123,24 @@ export default function DocumentsPage() {
   const rows: DocumentRow[] = list?.data ?? []
   const stats = statsQuery.data
   const detail = detailQuery.data
+  const total = list?.total ?? 0
+  const lastPage = Math.max(1, Math.ceil(total / currentPerPage))
+
+  const columns = buildDocumentsColumns(t)
+  const { columnOrder, columnVisibility, setColumnVisibility, handleDragStart, handleDrop } =
+    useColumnReorder(columns.map((c) => c.id as string))
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    state: { columnOrder, columnVisibility },
+    onColumnOrderChange: () => {},
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  const setFilter = (key: keyof DocFilters, value: string) =>
+    navigateFilters({ ...filters, [key]: value || undefined, page: '1' })
 
   return (
     <AuthenticatedLayout title="Documentos OCR">
@@ -173,30 +193,35 @@ export default function DocumentsPage() {
 
           <Card>
             <CardHeader>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Historial
-                  </CardTitle>
-                  <CardDescription>
-                    Cada llamada a la API de OCR queda registrada aquí.
-                  </CardDescription>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  <CardTitle>Historial</CardTitle>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    placeholder="Buscar por nombre…"
-                    value={search}
-                    onChange={(e) => {
-                      setSearch(e.target.value)
-                      setPage(1)
-                    }}
-                    className="w-full sm:w-56"
-                  />
+                  <div className="relative">
+                    <Input
+                      placeholder={t('filter_placeholder') || 'Buscar…'}
+                      value={searchTerm}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      className="w-64 pr-9"
+                    />
+                    {searchTerm && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground"
+                        onClick={() => handleSearch('')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                   <select
                     className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
-                    value={mode}
-                    onChange={(e) => setFilter(setMode)(e.target.value)}
+                    value={urlFilters.mode ?? ''}
+                    onChange={(e) => setFilter('mode', e.target.value)}
                   >
                     <option value="">Todos los modos</option>
                     {Object.entries(MODE_LABEL).map(([v, l]) => (
@@ -205,100 +230,61 @@ export default function DocumentsPage() {
                   </select>
                   <select
                     className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
-                    value={status}
-                    onChange={(e) => setFilter(setStatus)(e.target.value)}
+                    value={urlFilters.status ?? ''}
+                    onChange={(e) => setFilter('status', e.target.value)}
                   >
                     <option value="">Todos los estados</option>
-                    <option value="pending">Pendiente</option>
-                    <option value="done">Completado</option>
-                    <option value="error">Error</option>
+                    <option value="pending">pending</option>
+                    <option value="done">done</option>
+                    <option value="error">error</option>
                   </select>
                   <select
                     className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
-                    value={docType}
-                    onChange={(e) => setFilter(setDocType)(e.target.value)}
+                    value={urlFilters.doc_type ?? ''}
+                    onChange={(e) => setFilter('doc_type', e.target.value)}
                   >
                     <option value="">Todos los tipos</option>
                     {Object.entries(DOC_TYPE_LABEL).map(([v, l]) => (
                       <option key={v} value={v}>{l}</option>
                     ))}
                   </select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 gap-2"
-                    onClick={() => listQuery.refetch()}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" /> Actualizar
-                  </Button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <DataTableViewOptions table={table} columnLabels={documentColumnLabels(t)} />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 gap-2"
+                      onClick={() => listQuery.refetch()}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> {t('refresh') || 'Actualizar'}
+                    </Button>
+                  </div>
                 </div>
               </div>
+              <CardDescription>Cada llamada a la API de OCR queda registrada aquí.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Archivo</TableHead>
-                      <TableHead>Modo</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Idioma</TableHead>
-                      <TableHead>Páginas</TableHead>
-                      <TableHead>Creado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((doc) => (
-                      <TableRow
-                        key={doc.id}
-                        data-state={selected === doc.id ? 'selected' : undefined}
-                        className="cursor-pointer"
-                        onClick={() => setSelected(doc.id)}
-                      >
-                        <TableCell className="font-medium">
-                          {doc.original_filename ?? doc.id.slice(0, 8)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{MODE_LABEL[doc.mode]}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_VARIANT[doc.status]}>{doc.status}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {doc.doc_type ? (
-                            <Badge variant="outline">
-                              {DOC_TYPE_LABEL[doc.doc_type] ?? doc.doc_type}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{doc.lang}</TableCell>
-                        <TableCell>{doc.page_count ?? '—'}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
-                          {new Date(doc.created_at).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {rows.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
-                          {listQuery.isLoading ? 'Cargando…' : 'Sin documentos'}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                <DataTable
+                  table={table}
+                  colCount={columns.length}
+                  emptyMessage={listQuery.isLoading ? 'Cargando…' : t('no_results') || 'Sin documentos'}
+                  onDragStart={handleDragStart}
+                  onDrop={handleDrop}
+                  fixedColumnIds={[]}
+                  onRowClick={(doc) => setSelected(doc.id)}
+                  isRowActive={(doc) => doc.id === selected}
+                />
               </div>
             </CardContent>
-            <PaginationFooter
-              currentPage={list?.current_page ?? 1}
-              lastPage={list?.last_page ?? 1}
-              perPage={list?.per_page ?? PER_PAGE}
-              total={list?.total ?? 0}
-              noun="documentos"
-              onPageChange={setPage}
+            <DataTablePagination
+              currentPage={page}
+              lastPage={lastPage}
+              perPage={currentPerPage}
+              total={total}
+              selectedCount={0}
+              onPageChange={handlePageChange}
+              onPerPageChange={handlePerPageChange}
             />
           </Card>
 

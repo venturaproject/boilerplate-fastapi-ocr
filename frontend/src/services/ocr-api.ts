@@ -117,8 +117,17 @@ export const ocrApi = {
     return data
   },
 
-  async listJobs(params?: { page?: number; per_page?: number }): Promise<OcrJobList> {
-    const { data } = await axios.get(endpoints.ocr.jobs, { params })
+  async listJobs(params?: {
+    page?: number
+    per_page?: number
+    status?: string
+    doc_type?: string
+    search?: string
+  }): Promise<OcrJobList> {
+    const clean = Object.fromEntries(
+      Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== ''),
+    )
+    const { data } = await axios.get(endpoints.ocr.jobs, { params: clean })
     return data
   },
 

@@ -80,6 +80,7 @@ async def ext_ocr_list_jobs(
     per_page: int = 20,
     status: str | None = None,
     doc_type: str | None = None,
+    search: str | None = None,
     ctx: ExtClientContext = require_scope("ocr:read"),
     db: AsyncSession = Depends(get_db),
 ) -> OcrJobListResponse:
@@ -90,6 +91,7 @@ async def ext_ocr_list_jobs(
         api_client_id=ctx.client.id,
         status=status,
         doc_type=doc_type,
+        search=search,
         page=page,
         per_page=per_page,
     )

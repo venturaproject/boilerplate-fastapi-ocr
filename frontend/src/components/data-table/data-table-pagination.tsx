@@ -37,10 +37,15 @@ export function DataTablePagination({
 }: DataTablePaginationProps) {
   const { t } = useI18n()
 
+  const start = total === 0 ? 0 : (currentPage - 1) * perPage + 1
+  const end = Math.min(currentPage * perPage, total)
+
   return (
     <CardFooter className="flex items-center justify-between gap-4 py-4">
       <span className="text-sm text-muted-foreground">
-        {t('n_rows_selected', { selected: selectedCount, total })}
+        {selectedCount > 0
+          ? t('n_rows_selected', { selected: selectedCount, total })
+          : t('showing_range', { start, end, total })}
       </span>
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">

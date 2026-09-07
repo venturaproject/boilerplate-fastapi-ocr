@@ -16,6 +16,8 @@ interface DataTableProps<T> {
   onDragStart: (id: string) => void
   onDrop: (id: string) => void
   fixedColumnIds?: string[]
+  onRowClick?: (row: T) => void
+  isRowActive?: (row: T) => boolean
 }
 
 export function DataTable<T>({
@@ -25,6 +27,8 @@ export function DataTable<T>({
   onDragStart,
   onDrop,
   fixedColumnIds = ['select', 'actions'],
+  onRowClick,
+  isRowActive,
 }: DataTableProps<T>) {
   return (
     <Table>
@@ -66,7 +70,12 @@ export function DataTable<T>({
           </TableRow>
         ) : (
           table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
+            <TableRow
+              key={row.id}
+              data-state={isRowActive?.(row.original) ? 'selected' : undefined}
+              className={onRowClick ? 'cursor-pointer' : undefined}
+              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+            >
               {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}

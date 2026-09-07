@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { AuthenticatedLayout } from '@/layouts'
 import { Main } from '@/components/layout'
 import { MetricStatCard } from '@/components/metric-stat-card'
-import { PaginationFooter } from '@/components/pagination-footer'
+import { DataTable, DataTablePagination, DataTableViewOptions } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -14,19 +16,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { CheckCircle2, Clock, Layers, Loader2, RefreshCw, Send, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, Layers, Loader2, RefreshCw, Send, X, XCircle } from 'lucide-react'
+import { useI18n } from '@/i18n/context'
+import { useTableFilters } from '@/hooks/use-table-filters'
+import { useColumnReorder } from '@/hooks/use-column-reorder'
 import { ocrApi, type OcrJobStatus, type OcrJobSummary } from '@/services/ocr-api'
 import { DOC_TYPE_LABEL } from './index'
-
-const PER_PAGE = 20
+import { buildJobsColumns, jobColumnLabels } from './jobs-columns'
 
 const STATUS_VARIANT: Record<OcrJobStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   pending: 'outline',
@@ -35,21 +31,53 @@ const STATUS_VARIANT: Record<OcrJobStatus, 'default' | 'secondary' | 'outline' |
   error: 'destructive',
 }
 
-function StatusBadge({ status }: { status: OcrJobStatus }) {
-  return <Badge variant={STATUS_VARIANT[status]}>{status}</Badge>
+interface JobFilters {
+  search?: string
+  status?: string
+  doc_type?: string
+  page?: string
+  per_page?: string
+  [key: string]: string | undefined
 }
 
 export default function OcrJobs() {
+  const { t } = useI18n()
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
+  const urlFilters = Object.fromEntries(searchParams.entries()) as JobFilters
+
   const [file, setFile] = useState<File | null>(null)
   const [lang, setLang] = useState('es')
   const [callbackUrl, setCallbackUrl] = useState('')
-  const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string | null>(null)
 
+  const {
+    filters,
+    searchTerm,
+    navigate: navigateFilters,
+    handleSearch,
+    handlePageChange,
+    handlePerPageChange,
+    perPage,
+  } = useTableFilters<JobFilters>({
+    basePath: '/admin/ocr/jobs',
+    initialFilters: urlFilters,
+    initialPerPage: Number(urlFilters.per_page) || 20,
+  })
+
+  const page = Number(urlFilters.page) || 1
+  const currentPerPage = Number(urlFilters.per_page) || perPage
+
   const jobsQuery = useQuery({
-    queryKey: ['ocr-jobs', page],
-    queryFn: () => ocrApi.listJobs({ page, per_page: PER_PAGE }),
+    queryKey: ['ocr-jobs', urlFilters],
+    queryFn: () =>
+      ocrApi.listJobs({
+        page,
+        per_page: currentPerPage,
+        status: urlFilters.status,
+        doc_type: urlFilters.doc_type,
+        search: urlFilters.search,
+      }),
     refetchInterval: (query) =>
       query.state.data?.data.some((j) => j.status === 'pending' || j.status === 'processing')
         ? 3000
@@ -75,7 +103,6 @@ export default function OcrJobs() {
     onSuccess: (job) => {
       setFile(null)
       setCallbackUrl('')
-      setPage(1)
       setSelected(job.id)
       queryClient.invalidateQueries({ queryKey: ['ocr-jobs'] })
       queryClient.invalidateQueries({ queryKey: ['ocr-stats'] })
@@ -86,7 +113,23 @@ export default function OcrJobs() {
   const jobs: OcrJobSummary[] = list?.data ?? []
   const stats = statsQuery.data
   const total = list?.total ?? 0
-  const lastPage = Math.max(1, Math.ceil(total / PER_PAGE))
+  const lastPage = Math.max(1, Math.ceil(total / currentPerPage))
+
+  const columns = buildJobsColumns(t)
+  const { columnOrder, columnVisibility, setColumnVisibility, handleDragStart, handleDrop } =
+    useColumnReorder(columns.map((c) => c.id as string))
+
+  const table = useReactTable({
+    data: jobs,
+    columns,
+    state: { columnOrder, columnVisibility },
+    onColumnOrderChange: () => {},
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  const setFilter = (key: keyof JobFilters, value: string) =>
+    navigateFilters({ ...filters, [key]: value || undefined, page: '1' })
 
   return (
     <AuthenticatedLayout title="Trabajos OCR">
@@ -143,7 +186,9 @@ export default function OcrJobs() {
           <Card>
             <CardHeader>
               <CardTitle>Encolar trabajo</CardTitle>
-              <CardDescription>Imagen o PDF. El resultado se consulta abajo o por webhook.</CardDescription>
+              <CardDescription>
+                Imagen o PDF. El resultado se consulta abajo o por webhook.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <form
@@ -186,9 +231,11 @@ export default function OcrJobs() {
                 </div>
                 <div>
                   <Button type="submit" disabled={!file || create.isPending} className="gap-2">
-                    {create.isPending
-                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Enviando…</>
-                      : <><Send className="h-4 w-4" /> Encolar trabajo</>}
+                    {create.isPending ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Enviando…</>
+                    ) : (
+                      <><Send className="h-4 w-4" /> Encolar trabajo</>
+                    )}
                   </Button>
                 </div>
               </form>
@@ -197,79 +244,87 @@ export default function OcrJobs() {
 
           <Card>
             <CardHeader>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Layers className="h-5 w-5" />
-                    Historial
-                  </CardTitle>
-                  <CardDescription>Trabajos encolados desde el panel y desde la API.</CardDescription>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-5 w-5" />
+                  <CardTitle>Historial</CardTitle>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-2"
-                  onClick={() => jobsQuery.refetch()}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" /> Actualizar
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative">
+                    <Input
+                      placeholder={t('filter_placeholder') || 'Buscar…'}
+                      value={searchTerm}
+                      onChange={(e) => handleSearch(e.target.value)}
+                      className="w-64 pr-9"
+                    />
+                    {searchTerm && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground"
+                        onClick={() => handleSearch('')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <select
+                    className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
+                    value={urlFilters.status ?? ''}
+                    onChange={(e) => setFilter('status', e.target.value)}
+                  >
+                    <option value="">Todos los estados</option>
+                    {(['pending', 'processing', 'done', 'error'] as OcrJobStatus[]).map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <select
+                    className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
+                    value={urlFilters.doc_type ?? ''}
+                    onChange={(e) => setFilter('doc_type', e.target.value)}
+                  >
+                    <option value="">Todos los tipos</option>
+                    {Object.entries(DOC_TYPE_LABEL).map(([v, l]) => (
+                      <option key={v} value={v}>{l}</option>
+                    ))}
+                  </select>
+                  <div className="ml-auto flex items-center gap-2">
+                    <DataTableViewOptions table={table} columnLabels={jobColumnLabels(t)} />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 gap-2"
+                      onClick={() => jobsQuery.refetch()}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" /> {t('refresh') || 'Actualizar'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Archivo</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Idioma</TableHead>
-                      <TableHead>Páginas</TableHead>
-                      <TableHead>Creado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {jobs.map((job) => (
-                      <TableRow
-                        key={job.id}
-                        data-state={selected === job.id ? 'selected' : undefined}
-                        className="cursor-pointer"
-                        onClick={() => setSelected(job.id)}
-                      >
-                        <TableCell className="font-medium">{job.original_filename ?? job.id.slice(0, 8)}</TableCell>
-                        <TableCell><StatusBadge status={job.status} /></TableCell>
-                        <TableCell>
-                          {job.doc_type ? (
-                            <Badge variant="outline">{DOC_TYPE_LABEL[job.doc_type] ?? job.doc_type}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{job.lang}</TableCell>
-                        <TableCell>{job.page_count ?? '—'}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
-                          {new Date(job.created_at).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {jobs.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
-                          {jobsQuery.isLoading ? 'Cargando…' : 'Sin trabajos todavía'}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                <DataTable
+                  table={table}
+                  colCount={columns.length}
+                  emptyMessage={jobsQuery.isLoading ? 'Cargando…' : t('no_results') || 'Sin trabajos'}
+                  onDragStart={handleDragStart}
+                  onDrop={handleDrop}
+                  fixedColumnIds={[]}
+                  onRowClick={(job) => setSelected(job.id)}
+                  isRowActive={(job) => job.id === selected}
+                />
               </div>
             </CardContent>
-            <PaginationFooter
-              currentPage={list?.page ?? 1}
+            <DataTablePagination
+              currentPage={page}
               lastPage={lastPage}
-              perPage={list?.per_page ?? PER_PAGE}
+              perPage={currentPerPage}
               total={total}
-              noun="trabajos"
-              onPageChange={setPage}
+              selectedCount={0}
+              onPageChange={handlePageChange}
+              onPerPageChange={handlePerPageChange}
             />
           </Card>
 
@@ -278,7 +333,9 @@ export default function OcrJobs() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   Trabajo {detailQuery.data.id.slice(0, 8)}
-                  <StatusBadge status={detailQuery.data.status} />
+                  <Badge variant={STATUS_VARIANT[detailQuery.data.status]}>
+                    {detailQuery.data.status}
+                  </Badge>
                 </CardTitle>
                 {detailQuery.data.callback_status && (
                   <CardDescription>callback: {detailQuery.data.callback_status}</CardDescription>

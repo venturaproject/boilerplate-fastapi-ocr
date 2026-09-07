@@ -93,12 +93,13 @@ async def ocr_list_jobs(
     per_page: int = 20,
     status: str | None = None,
     doc_type: str | None = None,
+    search: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> OcrJobListResponse:
     per_page = max(1, min(per_page, 100))
     page = max(1, page)
     items, total = await ocr_repo.list_jobs(
-        db, status=status, doc_type=doc_type, page=page, per_page=per_page
+        db, status=status, doc_type=doc_type, search=search, page=page, per_page=per_page
     )
     return OcrJobListResponse(
         data=[OcrJobSummary.model_validate(j) for j in items],

@@ -59,6 +59,7 @@ async def list_jobs(
     api_client_id: uuid.UUID | None = None,
     status: str | None = None,
     doc_type: str | None = None,
+    search: str | None = None,
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[OcrJob], int]:
@@ -69,6 +70,8 @@ async def list_jobs(
         filters.append(OcrJob.status == status)
     if doc_type is not None:
         filters.append(OcrJob.doc_type == doc_type)
+    if search:
+        filters.append(OcrJob.original_filename.ilike(f"%{search}%"))
 
     total = (
         await db.execute(select(func.count()).select_from(OcrJob).where(*filters))
