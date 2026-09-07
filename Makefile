@@ -3,7 +3,7 @@
         migrate makemigration seed \
         process-outbox process-inbox process-ocr purge-ocr test-backend \
         lint tsc \
-        lint-backend lint-backend-fix type-check-backend \
+        format-backend lint-backend lint-backend-fix type-check-backend check-backend \
         install-frontend \
         clean-volumes help
 
@@ -85,14 +85,21 @@ test-backend: ## Ejecuta la suite de pytest del backend
 
 # ── Backend ───────────────────────────────────────────────────────────────────
 
-lint-backend: ## Ruff lint en el backend
+format-backend: ## Ruff format (aplica el estilo, tipo `pint`)
+	$(BE) uv run ruff format .
+
+lint-backend: ## Ruff: formato (--check) + lint
+	$(BE) uv run ruff format --check .
 	$(BE) uv run ruff check .
 
-lint-backend-fix: ## Ruff lint con autofix
+lint-backend-fix: ## Ruff: aplica formato + lint con autofix
+	$(BE) uv run ruff format .
 	$(BE) uv run ruff check . --fix
 
-type-check-backend: ## Mypy type check en el backend
+type-check-backend: ## Mypy (análisis estático estricto, tipo `phpstan`)
 	$(BE) uv run mypy app/
+
+check-backend: lint-backend type-check-backend test-backend ## Gate completo del backend (formato + lint + tipos + tests)
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 

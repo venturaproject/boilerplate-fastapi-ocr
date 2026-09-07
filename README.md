@@ -300,10 +300,28 @@ En el panel: **Usuarios → Clientes API** (columna «Límites y uso», editar l
 
 ## Desarrollo
 
+### Calidad de código (backend)
+
+Equivalencias con el stack de Laravel:
+
+| Laravel | Aquí | Comando |
+|---|---|---|
+| Pint (formateador) | `ruff format` | `make format-backend` |
+| PHP_CodeSniffer / lint | `ruff check` | (incluido en `make lint-backend`) |
+| PHPStan (análisis estático) | `mypy` estricto | `make type-check-backend` |
+| — (gate CI) | todo junto | `make check-backend` |
+
+- `make lint-backend` verifica **formato** (`ruff format --check`) **y** lint sin modificar nada.
+- `make lint-backend-fix` aplica formato + autofix de lint.
+- `mypy` corre con `disallow_untyped_defs`, `strict_equality`, `warn_unreachable`,
+  `check_untyped_defs`, `extra_checks` y `disallow_incomplete_defs` sobre `app/`
+  (nivel "PHPStan max"); config en `backend/pyproject.toml`.
+- `make check-backend` = formato + lint + tipos + tests (lo que corre CI).
+
 ```bash
+make check-backend       # gate completo del backend
 make test-backend        # pytest (usa OCR_ENGINE=fake automáticamente)
-make lint-backend
-make type-check-backend
+make format-backend      # aplica el formateo
 make process-ocr         # procesa un lote de jobs pendientes y sale
 make purge-ocr           # purga jobs vencidos y sus archivos
 make logs-ocr-worker
