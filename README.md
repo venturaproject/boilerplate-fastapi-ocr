@@ -38,14 +38,15 @@ make migrate && make seed     # crea tablas, permisos y un API client de ejemplo
 
 | valor | motor | notas |
 |---|---|---|
-| `paddle` *(def.)* | **PaddleOCR 3.x / PP‑OCRv5** | mejor precisión; `paddlepaddle` ≈ 1 GB, se instala en la imagen |
+| `paddle` *(def.)* | **PaddleOCR** (pin en 2.x; `engine.py` ya soporta la API 3.x) | mejor precisión; `paddlepaddle` ≈ 1 GB, se instala en la imagen |
 | `tesseract` | **Tesseract** (`pytesseract` + binario) | alternativa ligera; requiere los language packs de la imagen |
 | `fake` | stub determinista | tests / CI / dev sin dependencias pesadas |
 
 > En Apple Silicon, si `paddlepaddle` no tiene wheel para tu plataforma, usa
-> `OCR_ENGINE=fake` (o `tesseract`), o ejecuta el servicio en un host x86_64. El bump a
-> PaddleOCR 3.x está en el código pero **la ejecución real de paddle 3.x hay que
-> verificarla en CI / host x86** — `fake` y `tesseract` no se ven afectados.
+> `OCR_ENGINE=fake` (o `tesseract`), o ejecuta el servicio en un host x86_64. El wrapper
+> de `engine.py` ya habla la API 3.x (PP‑OCRv5) pero el **pin sigue en 2.x**: paddle 3.x
+> hace *segfault* / op no implementada (oneDNN+PIR) en CPU bajo emulación. Subir el pin a
+> `>=3` y verificarlo en CI x86 es el paso pendiente (`OCR_PADDLE_MKLDNN` da el toggle).
 
 **Detección automática de idioma**: con `OCR_LANG_AUTODETECT=true`, si la petición no
 fija `lang`, se detecta del texto (heurística es/en/fr/de/pt) y se reejecuta una vez con
@@ -293,8 +294,8 @@ Arquitectura OCR:
   multi-nodo hace falta almacenamiento de objetos (S3).
 - **Callbacks sin dead-letter**: 2 reintentos inmediatos; si fallan, queda `callback_status`
   pero no hay reenvío automático posterior.
-- **paddleocr 3.x sin verificar en x86**: el wrapper de `engine.py` ya usa la API 3.x
-  (PP‑OCRv5) pero la ejecución real requiere validación en CI / host x86.
+- **paddleocr pin en 2.x**: `engine.py` ya soporta la API 3.x, pero paddle 3.x falla en
+  CPU bajo emulación; subir el pin y verificar en CI x86 es el paso pendiente.
 - **`OCR_MAX_CONCURRENCY` es por proceso**: con N réplicas del worker el paralelismo real es
   N × ese valor. Para un tope global haría falta un semáforo en Redis/BD.
 - **Rate‑limit global**: un único `THROTTLE_OCR` para todos los clientes; no hay cuota ni
@@ -325,4 +326,5 @@ Ordenadas por relación valor/esfuerzo:
     `X-RateLimit-*` en las respuestas.
 12. *(parcial)* **Clasificador ML/LLM** — `OCR_CLASSIFIER=ml` (TF‑IDF + `scripts/
     train_classifier.py`) y `llm` (interfaz + stub) ya existen; falta el proveedor LLM real.
-13. *(en curso)* **`paddleocr` 3.x / PP‑OCRv5** — código migrado; falta verificación en x86.
+13. *(bloqueado)* **`paddleocr` 3.x / PP‑OCRv5** — wrapper listo; subir el pin y verificar
+    en CI x86 (3.x rompe en CPU bajo emulación).
