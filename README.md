@@ -165,7 +165,8 @@ Varios `files` en un multipart (o **un `.zip`**) → N jobs con el mismo `batch_
 por estado y la lista de jobs.
 - Envía una cabecera `Idempotency-Key` para que un reintento de red no cree un job duplicado
   (se replica la respuesta original; ver `app/idempotency/`).
-- Un `429` incluye `Retry-After` (segundos). Rate‑limit por defecto `THROTTLE_OCR` (`30/60`).
+- Un `429` incluye `Retry-After` (segundos). Rate‑limit por defecto `THROTTLE_OCR` (`30/60`),
+  con override por cliente (ver [Cuotas y medición](#cuotas-medición-y-rotación-de-secreto)).
 
 ### Verificar el webhook (`callback_url`)
 
@@ -232,6 +233,33 @@ En el panel: menú **OCR → Documentos**.
 Retención propia opcional: `DOCUMENT_RETENTION_DAYS` (0 = conservar siempre); la purga corre
 en el worker de OCR junto con la de jobs.
 
+## Cuotas, medición y rotación de secreto
+
+Cada llamada OCR se contabiliza por `api_client` en la tabla `client_usage` (una fila por
+mes `YYYY-MM`: `pages` y `requests`). Se incrementa en el endpoint síncrono, en `classify`,
+al crear un job async y al procesarlo.
+
+- **Límites por cliente** (opcionales, sobrescriben el default global):
+  - `rate_limit` — formato `«n/segundos»` (p. ej. `120/60`); si es `null` se usa `THROTTLE_OCR`.
+  - `monthly_page_quota` — tope de páginas al mes; `null`/`0` = `OCR_DEFAULT_MONTHLY_PAGE_QUOTA`
+    (0 = ilimitado). Al agotarse, los endpoints `ocr:write` responden `429` con
+    `detail` de cuota; los `ocr:read` siguen funcionando.
+- **Cabeceras** en toda respuesta OCR: `X-RateLimit-Limit`, `X-RateLimit-Remaining`,
+  `X-RateLimit-Reset`; en escrituras con cuota, además `X-Quota-Limit` y `X-Quota-Remaining`.
+  El `429` mantiene `Retry-After`.
+- `GET /api/ext/ocr/usage` *(scope `ocr:read`)* — uso del mes en curso + cuota y rate‑limit
+  efectivos del cliente autenticado.
+
+### Panel *(permiso `api_clients.manage`)*
+
+- `PATCH /api/v1/api-clients/{id}` — fija `rate_limit` / `monthly_page_quota` (`rate_limit`
+  mal formado → `422`).
+- `GET /api/v1/api-clients/{id}/usage` — mismo desglose que `/usage` pero para cualquier cliente.
+- `POST /api/v1/api-clients/{id}/rotate` — genera un secreto nuevo (se muestra **una vez**) e
+  invalida el secreto anterior y todos sus tokens de acceso.
+
+En el panel: **Usuarios → Clientes API** (columna «Límites y uso», editar límites, «Rotar secreto»).
+
 ## Configuración OCR (`.env`)
 
 | Variable | Def. | Descripción |
@@ -267,7 +295,8 @@ en el worker de OCR junto con la de jobs.
 | `OCR_CALLBACK_ALLOW_PRIVATE` | `false` | permitir callbacks a IPs privadas (solo interno) |
 | `OCR_CALLBACK_ALLOWED_HOSTS` | *(vacío)* | lista blanca de hosts para `callback_url` |
 | `OCR_CALLBACK_SIGNING_SECRET` | *(→ `SECRET_KEY`)* | secreto HMAC para firmar el webhook |
-| `THROTTLE_OCR` | `30/60` | rate‑limit de los endpoints OCR |
+| `THROTTLE_OCR` | `30/60` | rate‑limit de los endpoints OCR (default; se sobrescribe por `api_client.rate_limit`) |
+| `OCR_DEFAULT_MONTHLY_PAGE_QUOTA` | `0` | cuota mensual de páginas por defecto (`0` = ilimitada; override por `api_client.monthly_page_quota`) |
 
 ## Desarrollo
 
@@ -289,6 +318,8 @@ Arquitectura OCR:
 - `app/models/document.py` + `app/repositories/document.py` + `app/domain/document/` +
   `app/routers/documents.py` — tabla `documents` (registro de todo lo procesado por la API).
 - `app/routers/ext_ocr.py` (API externa) y `app/routers/ocr.py` (panel).
+- `app/models/api_client.py` (`ApiClient` + `ClientUsage`) + `app/repositories/client_usage.py` —
+  cuotas y medición; `app/dependencies.py::require_ocr` aplica scope + rate‑limit + cuota.
 - `app/ocr/worker.py` + `app/ocr/processor.py` — worker de la cola (servicio `ocr-worker`):
   reclaim de jobs colgados → claim → OCR → callback → purga por retención.
 - `app/services/ocr/langs.py` (validación de idioma), `cache.py` (caché síncrona),
@@ -313,8 +344,9 @@ Arquitectura OCR:
   CPU bajo emulación; subir el pin y verificar en CI x86 es el paso pendiente.
 - **`OCR_MAX_CONCURRENCY` es por proceso**: con N réplicas del worker el paralelismo real es
   N × ese valor. Para un tope global haría falta un semáforo en Redis/BD.
-- **Rate‑limit global**: un único `THROTTLE_OCR` para todos los clientes; no hay cuota ni
-  límite por `api_client`.
+- **Rate‑limit y cuota son por proceso/ventana fija en BD**: el contador de rate‑limit es una
+  ventana fija (`rate_limit_counters`); la cuota mensual se cuenta por `page_count` y no se
+  factura cuando el OCR falla antes de contar páginas (comportamiento deseado).
 
 ## Posibles mejoras (roadmap)
 
@@ -327,8 +359,8 @@ Ordenadas por relación valor/esfuerzo:
 3. **Observabilidad** — logs JSON estructurados + `/metrics` Prometheus (histograma de
    latencia OCR, profundidad de cola, hit‑rate de caché, errores de motor).
 4. *(hecho)* **Dead-letter de callbacks** — backoff + `redeliver` + filtro `?callback=`.
-5. **Cuotas y medición por cliente** — rate‑limit y cuota mensual de páginas por
-   `api_client` (base para facturación); los datos ya están en `documents`.
+5. *(hecho)* **Cuotas y medición por cliente** — `rate_limit` y `monthly_page_quota` por
+   `api_client`, tabla `client_usage`, `GET /usage`, cabeceras `X-Quota-*`.
 6. *(hecho)* **Formatos de salida** `?format=text|hocr|alto|pdf` (el `pdf` de un job
    re-lee el original vía el storage).
 7. *(hecho)* **Motor alternativo Tesseract** (`OCR_ENGINE=tesseract`); queda abrir un
@@ -336,8 +368,8 @@ Ordenadas por relación valor/esfuerzo:
 8. *(hecho)* **Detección automática de idioma** (`OCR_LANG_AUTODETECT`).
 9. *(hecho)* **Redacción de PII** (`DOCUMENT_REDACT_PII`).
 10. *(hecho)* **Endpoint batch** `POST /jobs:batch` + `GET /batches/{id}`.
-11. **Rotación de secreto** de `api_client` (hoy solo crear/revocar) y cabeceras
-    `X-RateLimit-*` en las respuestas.
+11. *(hecho)* **Rotación de secreto** de `api_client` (`POST .../rotate`) y cabeceras
+    `X-RateLimit-*` en todas las respuestas OCR.
 12. *(parcial)* **Clasificador ML/LLM** — `OCR_CLASSIFIER=ml` (TF‑IDF + `scripts/
     train_classifier.py`) y `llm` (interfaz + stub) ya existen; falta el proveedor LLM real.
 13. *(bloqueado)* **`paddleocr` 3.x / PP‑OCRv5** — wrapper listo; subir el pin y verificar

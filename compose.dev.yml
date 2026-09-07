@@ -67,6 +67,7 @@ services:
       OCR_CALLBACK_MAX_ATTEMPTS: ${OCR_CALLBACK_MAX_ATTEMPTS:-5}
       OCR_CALLBACK_BACKOFF_BASE_SECONDS: ${OCR_CALLBACK_BACKOFF_BASE_SECONDS:-60}
       OCR_BATCH_MAX_FILES: ${OCR_BATCH_MAX_FILES:-50}
+      OCR_DEFAULT_MONTHLY_PAGE_QUOTA: ${OCR_DEFAULT_MONTHLY_PAGE_QUOTA:-0}
     volumes:
       - ./backend:/app/backend
       - ./infrastructure:/app/infrastructure
@@ -127,6 +128,7 @@ services:
       OCR_CALLBACK_MAX_ATTEMPTS: ${OCR_CALLBACK_MAX_ATTEMPTS:-5}
       OCR_CALLBACK_BACKOFF_BASE_SECONDS: ${OCR_CALLBACK_BACKOFF_BASE_SECONDS:-60}
       OCR_BATCH_MAX_FILES: ${OCR_BATCH_MAX_FILES:-50}
+      OCR_DEFAULT_MONTHLY_PAGE_QUOTA: ${OCR_DEFAULT_MONTHLY_PAGE_QUOTA:-0}
     volumes:
       - ./backend:/app/backend
       - ./infrastructure:/app/infrastructure
