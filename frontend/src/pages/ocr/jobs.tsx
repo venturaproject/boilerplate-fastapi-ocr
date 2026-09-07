@@ -6,6 +6,7 @@ import { AuthenticatedLayout } from '@/layouts'
 import { Main } from '@/components/layout'
 import { MetricStatCard } from '@/components/metric-stat-card'
 import { DataTable, DataTablePagination, DataTableViewOptions } from '@/components/data-table'
+import { ListFilterPopover } from '@/components/list-filter-popover'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -269,26 +270,39 @@ export default function OcrJobs() {
                       </Button>
                     )}
                   </div>
-                  <select
-                    className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
-                    value={urlFilters.status ?? ''}
-                    onChange={(e) => setFilter('status', e.target.value)}
-                  >
-                    <option value="">Todos los estados</option>
-                    {(['pending', 'processing', 'done', 'error'] as OcrJobStatus[]).map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  <select
-                    className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
-                    value={urlFilters.doc_type ?? ''}
-                    onChange={(e) => setFilter('doc_type', e.target.value)}
-                  >
-                    <option value="">Todos los tipos</option>
-                    {Object.entries(DOC_TYPE_LABEL).map(([v, l]) => (
-                      <option key={v} value={v}>{l}</option>
-                    ))}
-                  </select>
+                  <ListFilterPopover
+                    groups={[
+                      {
+                        key: 'status',
+                        label: 'Estado',
+                        allLabel: 'Todos los estados',
+                        value: urlFilters.status,
+                        options: (['pending', 'processing', 'done', 'error'] as OcrJobStatus[]).map(
+                          (s) => ({ value: s, label: s }),
+                        ),
+                        onChange: (v) => setFilter('status', v ?? ''),
+                      },
+                      {
+                        key: 'doc_type',
+                        label: 'Tipo de documento',
+                        allLabel: 'Todos los tipos',
+                        value: urlFilters.doc_type,
+                        options: Object.entries(DOC_TYPE_LABEL).map(([value, label]) => ({
+                          value,
+                          label,
+                        })),
+                        onChange: (v) => setFilter('doc_type', v ?? ''),
+                      },
+                    ]}
+                    onClearAll={() =>
+                      navigateFilters({
+                        ...filters,
+                        status: undefined,
+                        doc_type: undefined,
+                        page: '1',
+                      })
+                    }
+                  />
                   <div className="ml-auto flex items-center gap-2">
                     <DataTableViewOptions table={table} columnLabels={jobColumnLabels(t)} />
                     <Button

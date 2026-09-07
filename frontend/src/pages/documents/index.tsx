@@ -6,6 +6,7 @@ import { AuthenticatedLayout } from '@/layouts'
 import { Main } from '@/components/layout'
 import { MetricStatCard } from '@/components/metric-stat-card'
 import { DataTable, DataTablePagination, DataTableViewOptions } from '@/components/data-table'
+import { ListFilterPopover } from '@/components/list-filter-popover'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -218,36 +219,53 @@ export default function DocumentsPage() {
                       </Button>
                     )}
                   </div>
-                  <select
-                    className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
-                    value={urlFilters.mode ?? ''}
-                    onChange={(e) => setFilter('mode', e.target.value)}
-                  >
-                    <option value="">Todos los modos</option>
-                    {Object.entries(MODE_LABEL).map(([v, l]) => (
-                      <option key={v} value={v}>{l}</option>
-                    ))}
-                  </select>
-                  <select
-                    className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
-                    value={urlFilters.status ?? ''}
-                    onChange={(e) => setFilter('status', e.target.value)}
-                  >
-                    <option value="">Todos los estados</option>
-                    <option value="pending">pending</option>
-                    <option value="done">done</option>
-                    <option value="error">error</option>
-                  </select>
-                  <select
-                    className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm"
-                    value={urlFilters.doc_type ?? ''}
-                    onChange={(e) => setFilter('doc_type', e.target.value)}
-                  >
-                    <option value="">Todos los tipos</option>
-                    {Object.entries(DOC_TYPE_LABEL).map(([v, l]) => (
-                      <option key={v} value={v}>{l}</option>
-                    ))}
-                  </select>
+                  <ListFilterPopover
+                    groups={[
+                      {
+                        key: 'mode',
+                        label: 'Modo',
+                        allLabel: 'Todos los modos',
+                        value: urlFilters.mode,
+                        options: Object.entries(MODE_LABEL).map(([value, label]) => ({
+                          value,
+                          label,
+                        })),
+                        onChange: (v) => setFilter('mode', v ?? ''),
+                      },
+                      {
+                        key: 'status',
+                        label: 'Estado',
+                        allLabel: 'Todos los estados',
+                        value: urlFilters.status,
+                        options: [
+                          { value: 'pending', label: 'pending' },
+                          { value: 'done', label: 'done' },
+                          { value: 'error', label: 'error' },
+                        ],
+                        onChange: (v) => setFilter('status', v ?? ''),
+                      },
+                      {
+                        key: 'doc_type',
+                        label: 'Tipo de documento',
+                        allLabel: 'Todos los tipos',
+                        value: urlFilters.doc_type,
+                        options: Object.entries(DOC_TYPE_LABEL).map(([value, label]) => ({
+                          value,
+                          label,
+                        })),
+                        onChange: (v) => setFilter('doc_type', v ?? ''),
+                      },
+                    ]}
+                    onClearAll={() =>
+                      navigateFilters({
+                        ...filters,
+                        mode: undefined,
+                        status: undefined,
+                        doc_type: undefined,
+                        page: '1',
+                      })
+                    }
+                  />
                   <div className="ml-auto flex items-center gap-2">
                     <DataTableViewOptions table={table} columnLabels={documentColumnLabels(t)} />
                     <Button
