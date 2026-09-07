@@ -1,35 +1,62 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Generator: Adobe Illustrator 27.2.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
-<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 693.89 143.28" style="enable-background:new 0 0 693.89 143.28;" xml:space="preserve">
-<style type="text/css">
-	.st0{fill:#6BA7AE;}
-	.st1{fill:#103A42;}
-</style>
-<g>
-	<g>
-		<path class="st0" d="M135.8,21.01H48.7c-9.15,0-14.88,9.91-10.3,17.84l43.55,75.43c4.58,7.93,16.02,7.93,20.6,0l43.55-75.43
-			C150.67,30.92,144.95,21.01,135.8,21.01z"/>
-	</g>
-	<g>
-		<path class="st1" d="M101.32,59.09l-6.37,33.42c-0.58,2.96-4.82,2.96-5.4,0l-6.37-33.42c-0.61-3.1-2.52-5.79-5.26-7.37
-			l-15.68-9.06c-2.43-1.41-1.44-5.13,1.38-5.13h57.25c2.81,0,3.81,3.72,1.38,5.13l-15.68,9.06
-			C103.84,53.3,101.92,55.99,101.32,59.09z"/>
-	</g>
-	<g>
-		<path class="st1" d="M338.46,42.27l-32.69,56.69h14.56l6.01-11.11h32.19l6.01,11.11h14.56l-32.68-56.69H338.46z M332.31,76.82
-			l10.12-18.74l10.12,18.74H332.31z"/>
-		<polygon class="st1" points="176.03,53.69 200.39,53.69 200.39,98.96 213.55,98.96 213.55,53.69 237.9,53.69 237.9,42.27 
-			176.03,42.27 		"/>
-		<rect x="453" y="42.27" class="st1" width="13.16" height="56.69"/>
-		<polygon class="st1" points="505.86,83.15 484.55,42.27 469.12,42.27 501.86,98.96 509.83,98.96 542.56,42.27 527.17,42.27 		"/>
-		<polygon class="st1" points="558.71,75.83 599.04,75.83 599.04,64.8 558.71,64.8 558.71,53.69 600.74,53.69 600.74,42.27 
-			545.55,42.27 545.55,98.96 601.14,98.96 601.14,87.53 558.71,87.53 		"/>
-		<polygon class="st1" points="621.42,87.53 621.42,42.27 608.25,42.27 608.25,98.96 660.87,98.96 660.87,87.53 		"/>
-		<path class="st1" d="M302.98,61.44c0-10-6.91-19.17-22.3-19.17h-37.24v11.43h37.24c6.84,0,8.97,3.64,8.97,7.75
-			s-2.13,7.75-8.97,7.75h-37.24v29.77h13.16V79.43h20.92l11.34,19.53h14.67l-12.33-21.23C298.75,75.2,302.98,69.94,302.98,61.44z"/>
-		<path class="st1" d="M418.37,42.27h-35.46v11.43h13.16h12.52h9.77c10.91,0,14.75,8.14,14.75,16.92s-3.84,16.92-14.75,16.92h-9.77
-			h-12.52h-13.16v11.43h35.46c19.1,0,28.31-12.37,28.31-28.35C446.68,54.68,437.47,42.27,418.37,42.27z"/>
-	</g>
-</g>
+<svg width="3000" height="1024" viewBox="0 0 3000 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mGradient" x1="130" y1="150" x2="900" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#103A42"/>
+      <stop offset="0.5" stop-color="#2d7888"/>
+      <stop offset="1" stop-color="#6BA7AE"/>
+    </linearGradient>
+    <linearGradient id="boltGradient" x1="570" y1="60" x2="510" y2="880" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe95a"/>
+      <stop offset="0.55" stop-color="#ffc21a"/>
+      <stop offset="1" stop-color="#ff9f00"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <path filter="url(#softShadow)" fill="url(#mGradient)" d="
+    M 130 145
+    C 112 145 100 157 100 175
+    L 100 774
+    C 100 786 105 798 114 807
+    L 245 936
+    C 260 951 286 941 286 919
+    L 286 520
+    C 286 493 321 482 337 504
+    L 480 710
+    C 492 728 519 728 532 710
+    L 687 504
+    C 704 482 738 494 738 522
+    L 738 919
+    C 738 941 764 951 779 936
+    L 910 807
+    C 919 798 924 786 924 774
+    L 924 175
+    C 924 157 912 145 894 145
+    C 888 145 882 147 877 150
+    L 550 370
+    C 528 385 499 385 476 370
+    L 147 150
+    C 142 147 136 145 130 145
+    Z"/>
+  <path filter="url(#softShadow)" fill="url(#boltGradient)" d="
+    M 632 45
+    C 650 42 663 58 658 75
+    L 587 365
+    C 583 381 596 395 612 392
+    L 711 374
+    C 729 371 742 390 733 406
+    L 489 870
+    C 478 890 448 880 452 857
+    L 491 626
+    C 494 609 479 596 463 601
+    L 376 625
+    C 359 630 344 616 346 598
+    L 398 123
+    C 399 109 410 98 424 96
+    L 632 45
+    Z"/>
+  <text x="1060" y="870"
+        font-family="Futura,'Century Gothic','Apple Gothic','Gill Sans',Tahoma,sans-serif"
+        font-weight="700" font-size="760" fill="#103A42">ayor</text>
 </svg>

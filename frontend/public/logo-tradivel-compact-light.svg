@@ -1,20 +1,59 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Generator: Adobe Illustrator 27.2.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
-<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 viewBox="0 0 120 143.28" style="enable-background:new 0 0 120 143.28;" xml:space="preserve">
-<style type="text/css">
-	.st0{fill:#6BA7AE;}
-	.st1{fill:#103A42;}
-</style>
-<g>
-	<g>
-		<path class="st0" d="M100.8,21.01H13.7c-9.15,0-14.88,9.91-10.3,17.84l43.55,75.43c4.58,7.93,16.02,7.93,20.6,0l43.55-75.43
-			C115.67,30.92,109.95,21.01,100.8,21.01z"/>
-	</g>
-	<g>
-		<path class="st1" d="M66.32,59.09l-6.37,33.42c-0.58,2.96-4.82,2.96-5.4,0l-6.37-33.42c-0.61-3.1-2.52-5.79-5.26-7.37
-			l-15.68-9.06c-2.43-1.41-1.44-5.13,1.38-5.13h57.25c2.81,0,3.81,3.72,1.38,5.13l-15.68,9.06
-			C68.84,53.3,66.92,55.99,66.32,59.09z"/>
-	</g>
-</g>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mGradient" x1="130" y1="150" x2="900" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#103A42"/>
+      <stop offset="0.5" stop-color="#2d7888"/>
+      <stop offset="1" stop-color="#6BA7AE"/>
+    </linearGradient>
+    <linearGradient id="boltGradient" x1="570" y1="60" x2="510" y2="880" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffe95a"/>
+      <stop offset="0.55" stop-color="#ffc21a"/>
+      <stop offset="1" stop-color="#ff9f00"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <path filter="url(#softShadow)" fill="url(#mGradient)" d="
+    M 130 145
+    C 112 145 100 157 100 175
+    L 100 774
+    C 100 786 105 798 114 807
+    L 245 936
+    C 260 951 286 941 286 919
+    L 286 520
+    C 286 493 321 482 337 504
+    L 480 710
+    C 492 728 519 728 532 710
+    L 687 504
+    C 704 482 738 494 738 522
+    L 738 919
+    C 738 941 764 951 779 936
+    L 910 807
+    C 919 798 924 786 924 774
+    L 924 175
+    C 924 157 912 145 894 145
+    C 888 145 882 147 877 150
+    L 550 370
+    C 528 385 499 385 476 370
+    L 147 150
+    C 142 147 136 145 130 145
+    Z"/>
+  <path filter="url(#softShadow)" fill="url(#boltGradient)" d="
+    M 632 45
+    C 650 42 663 58 658 75
+    L 587 365
+    C 583 381 596 395 612 392
+    L 711 374
+    C 729 371 742 390 733 406
+    L 489 870
+    C 478 890 448 880 452 857
+    L 491 626
+    C 494 609 479 596 463 601
+    L 376 625
+    C 359 630 344 616 346 598
+    L 398 123
+    C 399 109 410 98 424 96
+    L 632 45
+    Z"/>
 </svg>
