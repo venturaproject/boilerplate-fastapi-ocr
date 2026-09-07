@@ -3,12 +3,12 @@ set -e
 
 cd /app/backend
 
-# Install the OCR engine extras unless OCR is stubbed out (OCR_ENGINE=fake).
-if [ "${OCR_ENGINE:-paddle}" = "fake" ]; then
-    uv sync
-else
-    uv sync --extra paddle --extra tesseract
-fi
+# Install the OCR engine deps for the selected engine.
+case "${OCR_ENGINE:-paddle}" in
+    fake)      uv sync ;;
+    tesseract) uv sync --extra tesseract ;;
+    *)         uv sync --extra paddle ;;
+esac
 
 until pg_isready -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USER"; do
     echo "Waiting for postgres..."

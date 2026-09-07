@@ -74,7 +74,7 @@ services:
     entrypoint: []
     command: >
       sh -c "cd /app/backend &&
-      (if [ \"$${OCR_ENGINE:-paddle}\" = fake ]; then uv sync; else uv sync --extra paddle --extra tesseract; fi) &&
+      (case "$${OCR_ENGINE:-paddle}" in fake) uv sync;; tesseract) uv sync --extra tesseract;; *) uv sync --extra paddle;; esac) &&
       uv run python -m app.ocr.worker"
     environment:
       PYTHONUNBUFFERED: "1"
@@ -127,7 +127,7 @@ services:
     # Keep the shared backend_venv in sync with the same extras the backend uses.
     command: >
       sh -c "cd /app/backend &&
-      (if [ \"$${OCR_ENGINE:-paddle}\" = fake ]; then uv sync; else uv sync --extra paddle --extra tesseract; fi) &&
+      (case "$${OCR_ENGINE:-paddle}" in fake) uv sync;; tesseract) uv sync --extra tesseract;; *) uv sync --extra paddle;; esac) &&
       uv run python -m app.events.worker"
     environment:
       DB_HOST: ${DB_HOST}

@@ -15,9 +15,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 ENV UV_SYSTEM_PYTHON=1
 ENV HOME=/root
 
-COPY backend/pyproject.toml ./
-# Resolve deps (incl. the PaddleOCR + Tesseract engines) into /app/backend/.venv
-RUN uv sync --no-dev --extra paddle --extra tesseract
+COPY backend/pyproject.toml backend/uv.lock ./
+# Resolve deps (incl. the PaddleOCR engine) into /app/backend/.venv.
+# For OCR_ENGINE=tesseract instead, build with:  --build-arg OCR_EXTRA=tesseract
+ARG OCR_EXTRA=paddle
+RUN uv sync --no-dev --extra ${OCR_EXTRA}
 
 COPY backend/ ./
 
