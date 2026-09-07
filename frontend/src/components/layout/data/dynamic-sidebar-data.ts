@@ -24,6 +24,9 @@ import {
   IconShield,
   IconKey,
   IconDeviceDesktop,
+  IconScan,
+  IconListDetails,
+  IconFileText,
 } from '@tabler/icons-react'
 import {
   AudioWaveform,
@@ -53,6 +56,29 @@ export const DynamicSidebarData = () => {
             title: t('dashboard'),
             url: '/admin',
             icon: IconLayoutDashboard,
+          },
+        ],
+      },
+      {
+        title: 'OCR',
+        items: [
+          {
+            title: 'Reconocer',
+            url: '/admin/ocr',
+            icon: IconScan,
+            permission: 'ocr.use',
+          },
+          {
+            title: 'Trabajos',
+            url: '/admin/ocr/jobs',
+            icon: IconListDetails,
+            permission: 'ocr.jobs.view',
+          },
+          {
+            title: 'Documentos',
+            url: '/admin/documents',
+            icon: IconFileText,
+            permission: 'documents.view',
           },
         ],
       },

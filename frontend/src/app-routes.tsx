@@ -21,6 +21,7 @@ import DispositivosRoute from '@/routes/dispositivos-route'
 import TrabajadoresRoute from '@/routes/trabajadores-route'
 import SettingsRoute from '@/routes/settings-route'
 import OcrRoute from '@/routes/ocr-route'
+import DocumentsRoute from '@/routes/documents-route'
 
 // ── Guest routes (unauthenticated only) ───────────────────────────────────────
 
@@ -39,6 +40,10 @@ export const privateRoutes: RouteObject[] = [
   { path: '/admin/ocr', element: <OcrRoute /> },
   { path: '/admin/ocr/jobs', element: <OcrRoute /> },
   { path: '/admin/ocr/jobs/:id', element: <OcrRoute /> },
+
+  // Documents module (OCR processing registry)
+  { path: '/admin/documents', element: <DocumentsRoute /> },
+  { path: '/admin/documents/:id', element: <DocumentsRoute /> },
 
   // Users module
   { path: '/admin/users', element: <UsersRoute /> },

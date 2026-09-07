@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Dashboard
     dashboard_recent_devices_limit: int = 5
 
+    # Document registry (every OCR API call is recorded in the `documents` table)
+    document_text_excerpt_chars: int = 500  # 0 -> store no text at all
+    document_retention_days: int = 0  # 0 -> keep forever
+
     # Eventos (CQRS · outbox · inbox)
     events_worker_interval_seconds: float = 5.0
     idempotency_key_ttl_hours: int = 24

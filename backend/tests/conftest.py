@@ -16,7 +16,14 @@ from app.main import app
 from app.middleware.csrf import generate_csrf_token
 from app.models.api_client import ApiClient, ApiClientToken
 
-_TABLES = ("ocr_jobs", "outbox_messages", "inbox_messages", "idempotency_keys", "rate_limit_counters")
+_TABLES = (
+    "documents",
+    "ocr_jobs",
+    "outbox_messages",
+    "inbox_messages",
+    "idempotency_keys",
+    "rate_limit_counters",
+)
 
 
 async def _issue_token(name: str, scopes: list[str]) -> str:
@@ -96,6 +103,19 @@ async def client() -> AsyncIterator[AsyncClient]:
         headers={"X-CSRFToken": generate_csrf_token()},
     ) as c:
         yield c
+
+
+@pytest.fixture
+async def admin_client(client: AsyncClient) -> AsyncIterator[AsyncClient]:
+    """`client` logged in as the seeded admin (cookie-JWT set on the client)."""
+    from app.config import settings
+
+    r = await client.post(
+        "/api/v1/auth/login",
+        json={"login": settings.admin_email, "password": settings.admin_password},
+    )
+    assert r.status_code == 200, r.text
+    yield client
 
 
 @pytest.fixture

@@ -68,6 +68,12 @@ export const sidebarData: SidebarData = {
           icon: IconChecklist,
           permission: 'ocr.jobs.view',
         },
+        {
+          title: 'Documentos',
+          url: '/admin/documents',
+          icon: IconArticle,
+          permission: 'documents.view',
+        },
       ],
     },
     {

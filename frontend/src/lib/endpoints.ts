@@ -81,4 +81,9 @@ export const endpoints = {
     jobDetail: (id: string) => `${API_BASE}/ocr/jobs/${id}`,
     stats:     `${API_BASE}/ocr/stats`,
   },
+  documents: {
+    list:   `${API_BASE}/documents`,
+    detail: (id: string) => `${API_BASE}/documents/${id}`,
+    stats:  `${API_BASE}/documents/stats`,
+  },
 }

@@ -40,7 +40,7 @@ async def ext_ocr_sync(
     ctx: ExtClientContext = require_scope("ocr:write"),
 ) -> OcrResult:
     """Synchronous OCR: send a file, get the recognised text back in the response."""
-    return await run_sync_ocr(file, lang)
+    return await run_sync_ocr(file, lang, api_client_id=ctx.client.id)
 
 
 @router.post("/classify", dependencies=[_ocr_rl, _sync_size_guard])
@@ -49,8 +49,8 @@ async def ext_ocr_classify(
     lang: str | None = Form(default=None),
     ctx: ExtClientContext = require_scope("ocr:write"),
 ) -> ClassifyOut:
-    """OCR + document-type classification (invoice / cv / payslip / …). Not stored."""
-    return await classify_document(file, lang)
+    """OCR + document-type classification (invoice / cv / payslip / …)."""
+    return await classify_document(file, lang, api_client_id=ctx.client.id)
 
 
 @router.post("/jobs", status_code=202, dependencies=[_ocr_rl, _job_size_guard])

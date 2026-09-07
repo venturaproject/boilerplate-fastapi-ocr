@@ -11,6 +11,7 @@ import uuid
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models.ocr_job import OcrJob
+from app.repositories import document as document_repo
 from app.repositories import ocr_job as ocr_repo
 from app.schemas.ocr import OcrJobOut
 from app.services.ocr import run_ocr_file
@@ -62,6 +63,8 @@ async def _process_one(job_id: uuid.UUID) -> None:
                 error=f"{type(exc).__name__}: {exc}",
                 max_attempts=settings.ocr_job_max_attempts,
             )
+            if status == OcrJob.STATUS_ERROR:
+                await document_repo.sync_from_job(db, job)
         if status == OcrJob.STATUS_ERROR:
             await _fire_callback(job_id)
         return
@@ -77,6 +80,7 @@ async def _process_one(job_id: uuid.UUID) -> None:
                 processing_ms=result.processing_ms,
                 doc_type=result.classification.doc_type if result.classification else None,
             )
+            await document_repo.sync_from_job(db, job)
     await _fire_callback(job_id)
 
 
@@ -113,4 +117,11 @@ async def purge_once() -> int:
         delete_job_files(job_id)
     if purged:
         logger.info("ocr-worker: %s job(s) purgado(s) por retención", len(purged))
+
+    async with AsyncSessionLocal() as db, db.begin():
+        docs_purged = await document_repo.purge_expired_documents(
+            db, retention_days=settings.document_retention_days
+        )
+    if docs_purged:
+        logger.info("ocr-worker: %s documento(s) purgado(s) por retención", docs_purged)
     return len(purged)

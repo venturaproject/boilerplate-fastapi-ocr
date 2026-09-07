@@ -45,6 +45,8 @@ PERMISSIONS = [
     "api_clients.manage", "api_clients.view", "api_clients.create", "api_clients.revoke",
     # ocr
     "ocr.use", "ocr.jobs.view",
+    # documents (OCR processing registry)
+    "documents.view", "documents.delete",
 ]
 
 ROLES = {
@@ -58,6 +60,7 @@ ROLES = {
         "dispositivos.view", "dispositivos.create", "dispositivos.edit",
         "dashboard.view",
         "ocr.use", "ocr.jobs.view",
+        "documents.view",
     ],
     "viewer": [
         "users.view",
@@ -67,6 +70,7 @@ ROLES = {
         "telefonos.view",
         "dispositivos.view",
         "dashboard.view",
+        "documents.view",
     ],
 }
 

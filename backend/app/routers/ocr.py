@@ -43,25 +43,24 @@ async def ocr_ready() -> Response:
     return JSONResponse(body, status_code=200 if body["ready"] else 503)
 
 
-@router.post("/scan", dependencies=[require_permission("ocr.use"), _ocr_rl, _sync_size_guard])
+@router.post("/scan", dependencies=[_ocr_rl, _sync_size_guard])
 async def ocr_scan(
     file: UploadFile = FileParam(...),
     lang: str | None = Form(default=None),
+    user: User = require_permission("ocr.use"),
 ) -> OcrResult:
     """Synchronous OCR playground for the dashboard."""
-    return await run_sync_ocr(file, lang)
+    return await run_sync_ocr(file, lang, created_by_user_id=user.id)
 
 
-@router.post(
-    "/classify",
-    dependencies=[require_permission("ocr.use"), _ocr_rl, _sync_size_guard],
-)
+@router.post("/classify", dependencies=[_ocr_rl, _sync_size_guard])
 async def ocr_classify(
     file: UploadFile = FileParam(...),
     lang: str | None = Form(default=None),
+    user: User = require_permission("ocr.use"),
 ) -> ClassifyOut:
     """OCR + document-type classification for the dashboard."""
-    return await classify_document(file, lang)
+    return await classify_document(file, lang, created_by_user_id=user.id)
 
 
 @router.post(

@@ -133,6 +133,46 @@ está fijado, hosts fuera de la lista). Los redirects no se siguen.
 - Al arrancar, backend y worker precargan los modelos (`OCR_WARMUP_LANGS`), así la primera
   petición no espera la descarga/carga.
 
+## Registro de documentos
+
+**Toda** llamada a la API de OCR queda registrada en la tabla `documents` — una fila por
+petición, con `mode`:
+
+| `mode` | Origen | `status` |
+|---|---|---|
+| `sync` | `POST /api/ext/ocr` | siempre `done` (si falla, responde error y no se guarda) |
+| `classify` | `POST /api/ext/ocr/classify` | siempre `done` |
+| `async` | `POST /api/ext/ocr/jobs` | `pending` → `done` / `error` (lo actualiza el worker) |
+
+Cada fila guarda metadatos (`original_filename`, `content_type`, `size_bytes`, `lang`,
+`page_count`, `processing_ms`), el tipo de documento detectado (`doc_type`,
+`doc_type_confidence`), el número de caracteres reconocidos (`char_count`) y un **extracto
+del texto** (`text_excerpt`, primeros `DOCUMENT_TEXT_EXCERPT_CHARS` caracteres; `0` = no
+guardar texto). Las filas `async` enlazan con su `ocr_jobs.id` (`ocr_job_id`); ese enlace es
+`SET NULL`, así que el registro **sobrevive a la purga por retención de los jobs**.
+
+- El registro nunca puede tumbar una respuesta OCR: se escribe en su propia transacción y
+  cualquier error solo se loguea.
+- `record_document` no guarda el resultado OCR completo (eso vive en `ocr_jobs.result`
+  mientras el job no se purgue) — solo el extracto.
+
+### Panel — `/api/v1/documents` *(permiso `documents.view`)*
+
+Autenticado con cookie‑JWT (no con el Bearer de la API externa):
+
+- `GET /api/v1/documents` — listado paginado; filtros `mode`, `doc_type`, `status`,
+  `search` (nombre de archivo).
+- `GET /api/v1/documents/{id}` — una fila.
+- `GET /api/v1/documents/stats` — totales, desglose `by_mode` / `by_status` / `by_doc_type`,
+  documentos en las últimas 24 h, latencia media/p95.
+- `DELETE /api/v1/documents/{id}` — borra el registro (permiso `documents.delete`); el job
+  OCR asociado no se ve afectado.
+
+En el panel: menú **OCR → Documentos**.
+
+Retención propia opcional: `DOCUMENT_RETENTION_DAYS` (0 = conservar siempre); la purga corre
+en el worker de OCR junto con la de jobs.
+
 ## Configuración OCR (`.env`)
 
 | Variable | Def. | Descripción |
@@ -149,6 +189,8 @@ está fijado, hosts fuera de la lista). Los redirects no se siguen.
 | `OCR_SORT_READING_ORDER` | `true` | ordenar líneas por orden de lectura |
 | `OCR_CLASSIFIER` | `rules` | clasificador de tipo de documento (`rules` o `none`) |
 | `OCR_CLASSIFIER_MIN_SCORE` / `OCR_CLASSIFIER_MIN_CONFIDENCE` | `2.5` / `0.4` | umbrales para asignar un tipo |
+| `DOCUMENT_TEXT_EXCERPT_CHARS` | `500` | caracteres del texto OCR guardados en `documents.text_excerpt` (`0` = ninguno) |
+| `DOCUMENT_RETENTION_DAYS` | `0` | antigüedad para purgar filas de `documents` (`0` = conservar siempre) |
 | `OCR_SYNC_CACHE_TTL_SECONDS` / `OCR_SYNC_CACHE_MAX_ENTRIES` | `300` / `64` | caché del endpoint síncrono (0 = off) |
 | `OCR_WORKER_INTERVAL_SECONDS` | `2` | frecuencia de sondeo del worker |
 | `OCR_JOB_MAX_ATTEMPTS` | `3` | reintentos antes de marcar el job como `error` |
@@ -179,6 +221,8 @@ Arquitectura OCR:
   `FakeOcrEngine` + `warmup`), `service.py` (inferencia fuera del event loop), `jobs.py`
   (lógica común), `callback.py` (webhook firmado + guarda SSRF), `storage.py`.
 - `app/models/ocr_job.py` + `app/repositories/ocr_job.py` — tabla `ocr_jobs` (claim/reclaim/purge).
+- `app/models/document.py` + `app/repositories/document.py` + `app/domain/document/` +
+  `app/routers/documents.py` — tabla `documents` (registro de todo lo procesado por la API).
 - `app/routers/ext_ocr.py` (API externa) y `app/routers/ocr.py` (panel).
 - `app/ocr/worker.py` + `app/ocr/processor.py` — worker de la cola (servicio `ocr-worker`):
   reclaim de jobs colgados → claim → OCR → callback → purga por retención.

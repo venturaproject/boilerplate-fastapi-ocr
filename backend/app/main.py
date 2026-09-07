@@ -20,6 +20,7 @@ from app.routers import (
     csrf,
     dashboard,
     dispositivos,
+    documents,
     ext_ocr,
     external,
     external_auth,
@@ -97,6 +98,7 @@ app.include_router(permissions.router)
 app.include_router(trabajadores.router)
 app.include_router(telefonos.router)
 app.include_router(dispositivos.router)
+app.include_router(documents.router)
 app.include_router(dashboard.router)
 app.include_router(api_clients.router)
 app.include_router(notifications.router)
