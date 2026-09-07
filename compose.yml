@@ -36,6 +36,8 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       ADMIN_NAME: ${ADMIN_NAME:-Admin}
       OCR_ENGINE: ${OCR_ENGINE:-paddle}
+      OCR_LANG_AUTODETECT: ${OCR_LANG_AUTODETECT:-false}
+      TESSERACT_CMD: ${TESSERACT_CMD:-}
       OCR_LANG: ${OCR_LANG:-es}
       OCR_USE_GPU: ${OCR_USE_GPU:-false}
       THROTTLE_OCR: ${THROTTLE_OCR:-30/60}
@@ -71,6 +73,8 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       MEDIA_DIR: /app/backend/media
       OCR_ENGINE: ${OCR_ENGINE:-paddle}
+      OCR_LANG_AUTODETECT: ${OCR_LANG_AUTODETECT:-false}
+      TESSERACT_CMD: ${TESSERACT_CMD:-}
       OCR_LANG: ${OCR_LANG:-es}
       OCR_USE_GPU: ${OCR_USE_GPU:-false}
       OCR_MAX_IMAGE_MEGAPIXELS: ${OCR_MAX_IMAGE_MEGAPIXELS:-40}

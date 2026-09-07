@@ -34,10 +34,22 @@ make migrate && make seed     # crea tablas, permisos y un API client de ejemplo
   El dashboard muestra métricas de OCR (por tipo de documento, por modo, latencia, actividad).
 - `make seed` imprime el `client_id` / `client_secret` del cliente `ocr-demo`.
 
-> **PaddleOCR es pesado** (`paddlepaddle` ≈ 1 GB) y se instala dentro de la imagen. En
-> desarrollo puedes trabajar sin él poniendo `OCR_ENGINE=fake` en `.env` (motor stub
-> determinista). En Apple Silicon, si `paddlepaddle` no dispone de wheel para tu
-> plataforma, usa `OCR_ENGINE=fake` o ejecuta el servicio en un host x86_64.
+### Motores OCR (`OCR_ENGINE`)
+
+| valor | motor | notas |
+|---|---|---|
+| `paddle` *(def.)* | **PaddleOCR 3.x / PP‑OCRv5** | mejor precisión; `paddlepaddle` ≈ 1 GB, se instala en la imagen |
+| `tesseract` | **Tesseract** (`pytesseract` + binario) | alternativa ligera; requiere los language packs de la imagen |
+| `fake` | stub determinista | tests / CI / dev sin dependencias pesadas |
+
+> En Apple Silicon, si `paddlepaddle` no tiene wheel para tu plataforma, usa
+> `OCR_ENGINE=fake` (o `tesseract`), o ejecuta el servicio en un host x86_64. El bump a
+> PaddleOCR 3.x está en el código pero **la ejecución real de paddle 3.x hay que
+> verificarla en CI / host x86** — `fake` y `tesseract` no se ven afectados.
+
+**Detección automática de idioma**: con `OCR_LANG_AUTODETECT=true`, si la petición no
+fija `lang`, se detecta del texto (heurística es/en/fr/de/pt) y se reejecuta una vez con
+el idioma detectado; la respuesta marca `lang_detected: true`.
 
 ## Autenticación de la API externa
 
@@ -195,8 +207,10 @@ en el worker de OCR junto con la de jobs.
 
 | Variable | Def. | Descripción |
 |---|---|---|
-| `OCR_ENGINE` | `paddle` | `paddle` o `fake` |
-| `OCR_LANG` | `es` | idioma por defecto de PaddleOCR |
+| `OCR_ENGINE` | `paddle` | `paddle` · `tesseract` · `fake` |
+| `OCR_LANG` | `es` | idioma por defecto |
+| `OCR_LANG_AUTODETECT` | `false` | si no se pasa `lang`, detectarlo del texto y reejecutar |
+| `TESSERACT_CMD` | *(vacío)* | ruta al binario `tesseract` (vacío = en el PATH) |
 | `OCR_USE_GPU` | `false` | usar GPU (requiere `paddlepaddle-gpu`) |
 | `OCR_MODEL_DIR` | `/app/backend/.paddlex` | caché de modelos PaddleOCR/PaddleX |
 | `OCR_PDF_DPI` | `200` | DPI al rasterizar PDFs |
@@ -262,8 +276,8 @@ Arquitectura OCR:
   multi-nodo hace falta almacenamiento de objetos (S3).
 - **Callbacks sin dead-letter**: 2 reintentos inmediatos; si fallan, queda `callback_status`
   pero no hay reenvío automático posterior.
-- **`paddleocr` fijado a 2.x**; 3.x / PP-OCRv5 da mejor precisión (el wrapper de `engine.py`
-  aísla el cambio).
+- **paddleocr 3.x sin verificar en x86**: el wrapper de `engine.py` ya usa la API 3.x
+  (PP‑OCRv5) pero la ejecución real requiere validación en CI / host x86.
 - **`OCR_MAX_CONCURRENCY` es por proceso**: con N réplicas del worker el paralelismo real es
   N × ese valor. Para un tope global haría falta un semáforo en Redis/BD.
 - **Rate‑limit global**: un único `THROTTLE_OCR` para todos los clientes; no hay cuota ni
@@ -286,9 +300,9 @@ Ordenadas por relación valor/esfuerzo:
    `api_client` (base para facturación); los datos ya están en `documents`.
 6. **Formatos de salida** — `?format=text|hocr|alto|pdf` (PDF con capa de texto es una
    petición habitual en APIs de OCR).
-7. **Motor alternativo** — Tesseract como *fallback* ligero, o adaptador a un OCR cloud,
-   detrás de la misma interfaz `OcrEngine`.
-8. **Detección automática de idioma** en una pasada rápida, para no exigir `lang`.
+7. *(hecho)* **Motor alternativo Tesseract** (`OCR_ENGINE=tesseract`); queda abrir un
+   adaptador a un OCR cloud tras la misma interfaz `OcrEngine`.
+8. *(hecho)* **Detección automática de idioma** (`OCR_LANG_AUTODETECT`).
 9. **Redacción de PII** opcional sobre `documents.text_excerpt` (enmascarar email / DNI /
    IBAN) — relevante porque se procesan nóminas, extractos y documentos de identidad.
 10. **Endpoint batch** — subir un zip o varios archivos y devolver un `batch_id`.
@@ -296,4 +310,4 @@ Ordenadas por relación valor/esfuerzo:
     `X-RateLimit-*` en las respuestas.
 12. **Clasificador ML/LLM** — `classify()` ya es pluggable; añadir un backend TF‑IDF
     entrenable o uno LLM, y ampliar keywords/idiomas del set por reglas.
-13. **Migrar a `paddleocr` 3.x / PP‑OCRv5** cuando haya wheels estables para el target.
+13. *(en curso)* **`paddleocr` 3.x / PP‑OCRv5** — código migrado; falta verificación en x86.

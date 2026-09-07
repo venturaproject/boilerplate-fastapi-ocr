@@ -5,6 +5,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
         curl libpq-dev gcc postgresql-client \
         libgl1 libglib2.0-0 libgomp1 libsm6 libxext6 libxrender1 \
+        tesseract-ocr tesseract-ocr-spa tesseract-ocr-eng tesseract-ocr-fra tesseract-ocr-deu tesseract-ocr-por \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv

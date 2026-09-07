@@ -40,6 +40,8 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-password}
       ADMIN_NAME: ${ADMIN_NAME:-Admin}
       OCR_ENGINE: ${OCR_ENGINE:-paddle}
+      OCR_LANG_AUTODETECT: ${OCR_LANG_AUTODETECT:-false}
+      TESSERACT_CMD: ${TESSERACT_CMD:-}
       OCR_LANG: ${OCR_LANG:-es}
       OCR_USE_GPU: ${OCR_USE_GPU:-false}
       THROTTLE_OCR: ${THROTTLE_OCR:-30/60}
@@ -70,7 +72,7 @@ services:
     entrypoint: []
     command: >
       sh -c "cd /app/backend &&
-      (if [ \"$${OCR_ENGINE:-paddle}\" = fake ]; then uv sync; else uv sync --extra paddle; fi) &&
+      (if [ \"$${OCR_ENGINE:-paddle}\" = fake ]; then uv sync; else uv sync --extra paddle --extra tesseract; fi) &&
       uv run python -m app.ocr.worker"
     environment:
       PYTHONUNBUFFERED: "1"
@@ -82,6 +84,8 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       MEDIA_DIR: /app/backend/media
       OCR_ENGINE: ${OCR_ENGINE:-paddle}
+      OCR_LANG_AUTODETECT: ${OCR_LANG_AUTODETECT:-false}
+      TESSERACT_CMD: ${TESSERACT_CMD:-}
       OCR_LANG: ${OCR_LANG:-es}
       OCR_USE_GPU: ${OCR_USE_GPU:-false}
       OCR_MAX_IMAGE_MEGAPIXELS: ${OCR_MAX_IMAGE_MEGAPIXELS:-40}
@@ -119,7 +123,7 @@ services:
     # Keep the shared backend_venv in sync with the same extras the backend uses.
     command: >
       sh -c "cd /app/backend &&
-      (if [ \"$${OCR_ENGINE:-paddle}\" = fake ]; then uv sync; else uv sync --extra paddle; fi) &&
+      (if [ \"$${OCR_ENGINE:-paddle}\" = fake ]; then uv sync; else uv sync --extra paddle --extra tesseract; fi) &&
       uv run python -m app.events.worker"
     environment:
       DB_HOST: ${DB_HOST}
@@ -129,6 +133,8 @@ services:
       DB_PORT: ${DB_PORT}
       SECRET_KEY: ${SECRET_KEY}
       OCR_ENGINE: ${OCR_ENGINE:-paddle}
+      OCR_LANG_AUTODETECT: ${OCR_LANG_AUTODETECT:-false}
+      TESSERACT_CMD: ${TESSERACT_CMD:-}
       JWT_ISSUER: ${JWT_ISSUER:-fastapi-ocr}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-fastapi-ocr-frontend}
     volumes:

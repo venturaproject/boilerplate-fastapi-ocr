@@ -3,11 +3,11 @@ set -e
 
 cd /app/backend
 
-# Install the PaddleOCR engine unless OCR is stubbed out (OCR_ENGINE=fake).
+# Install the OCR engine extras unless OCR is stubbed out (OCR_ENGINE=fake).
 if [ "${OCR_ENGINE:-paddle}" = "fake" ]; then
     uv sync
 else
-    uv sync --extra paddle
+    uv sync --extra paddle --extra tesseract
 fi
 
 until pg_isready -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "$DB_USER"; do
