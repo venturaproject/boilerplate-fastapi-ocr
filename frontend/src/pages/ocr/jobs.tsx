@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/table'
 import { Loader2, RefreshCw, Send } from 'lucide-react'
 import { ocrApi, type OcrJobStatus, type OcrJobSummary } from '@/services/ocr-api'
+import { DOC_TYPE_LABEL } from './index'
 
 const STATUS_VARIANT: Record<OcrJobStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   pending: 'outline',
@@ -187,6 +188,7 @@ export default function OcrJobs() {
                     <TableRow>
                       <TableHead>Archivo</TableHead>
                       <TableHead>Estado</TableHead>
+                      <TableHead>Tipo</TableHead>
                       <TableHead>Idioma</TableHead>
                       <TableHead>Páginas</TableHead>
                       <TableHead>Creado</TableHead>
@@ -202,6 +204,13 @@ export default function OcrJobs() {
                       >
                         <TableCell className="font-medium">{job.original_filename ?? job.id}</TableCell>
                         <TableCell><StatusBadge status={job.status} /></TableCell>
+                        <TableCell>
+                          {job.doc_type ? (
+                            <Badge variant="outline">{DOC_TYPE_LABEL[job.doc_type] ?? job.doc_type}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
                         <TableCell>{job.lang}</TableCell>
                         <TableCell>{job.page_count ?? '—'}</TableCell>
                         <TableCell className="text-muted-foreground text-xs">
@@ -211,7 +220,7 @@ export default function OcrJobs() {
                     ))}
                     {jobs.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
+                        <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
                           {jobsQuery.isLoading ? 'Cargando…' : 'Sin trabajos todavía'}
                         </TableCell>
                       </TableRow>

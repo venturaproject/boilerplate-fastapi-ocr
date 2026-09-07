@@ -75,6 +75,7 @@ async def _process_one(job_id: uuid.UUID) -> None:
                 result=result.model_dump(mode="json"),
                 page_count=result.page_count,
                 processing_ms=result.processing_ms,
+                doc_type=result.classification.doc_type if result.classification else None,
             )
     await _fire_callback(job_id)
 

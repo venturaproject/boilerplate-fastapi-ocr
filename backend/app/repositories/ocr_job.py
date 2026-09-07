@@ -57,12 +57,18 @@ async def list_jobs(
     db: AsyncSession,
     *,
     api_client_id: uuid.UUID | None = None,
+    status: str | None = None,
+    doc_type: str | None = None,
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[OcrJob], int]:
     filters = []
     if api_client_id is not None:
         filters.append(OcrJob.api_client_id == api_client_id)
+    if status is not None:
+        filters.append(OcrJob.status == status)
+    if doc_type is not None:
+        filters.append(OcrJob.doc_type == doc_type)
 
     total = (
         await db.execute(select(func.count()).select_from(OcrJob).where(*filters))
@@ -118,6 +124,17 @@ async def stats(db: AsyncSession, *, api_client_id: uuid.UUID | None = None) -> 
         )
     ).scalar_one_or_none()
 
+    by_doc_type: dict[str, int] = {
+        dt: int(n)
+        for dt, n in (
+            await db.execute(
+                select(OcrJob.doc_type, func.count())
+                .where(*base_filters, OcrJob.doc_type.isnot(None))
+                .group_by(OcrJob.doc_type)
+            )
+        ).all()
+    }
+
     return OcrStats(
         pending=counts.get(OcrJob.STATUS_PENDING, 0),
         processing=counts.get(OcrJob.STATUS_PROCESSING, 0),
@@ -126,6 +143,7 @@ async def stats(db: AsyncSession, *, api_client_id: uuid.UUID | None = None) -> 
         oldest_pending_age_seconds=round(oldest_age, 1) if oldest_age is not None else None,
         processing_ms_avg=round(float(avg_ms), 1) if avg_ms is not None else None,
         processing_ms_p95=round(float(p95_ms), 1) if p95_ms is not None else None,
+        by_doc_type=by_doc_type,
     )
 
 
@@ -155,11 +173,13 @@ async def mark_done(
     result: dict,
     page_count: int,
     processing_ms: int | None = None,
+    doc_type: str | None = None,
 ) -> None:
     job.status = OcrJob.STATUS_DONE
     job.result = result
     job.page_count = page_count
     job.processing_ms = processing_ms
+    job.doc_type = doc_type
     job.error = None
     job.finished_at = datetime.now(tz=UTC)
     await db.flush()

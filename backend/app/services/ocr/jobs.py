@@ -16,7 +16,7 @@ from app.exceptions import (
 )
 from app.models.ocr_job import OcrJob
 from app.repositories import ocr_job as ocr_repo
-from app.schemas.ocr import OcrResult
+from app.schemas.ocr import ClassifyOut, OcrResult
 from app.services.ocr import cache as ocr_cache
 from app.services.ocr import run_ocr
 from app.services.ocr.callback import validate_callback_url
@@ -83,6 +83,19 @@ async def run_sync_ocr(file: UploadFile, lang: str | None) -> OcrResult:
     )
     ocr_cache.put(cache_key, result)
     return result
+
+
+async def classify_document(file: UploadFile, lang: str | None) -> ClassifyOut:
+    result = await run_sync_ocr(file, lang)
+    c = result.classification
+    return ClassifyOut(
+        doc_type=c.doc_type if c else None,
+        confidence=c.confidence if c else 0.0,
+        scores=c.scores if c else {},
+        lang=result.lang,
+        page_count=result.page_count,
+        text_excerpt=result.text[:500],
+    )
 
 
 async def create_ocr_job(

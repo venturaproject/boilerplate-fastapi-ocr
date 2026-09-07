@@ -23,6 +23,17 @@ import {
 import { AlertCircle, FileScan, Loader2, ScanText } from 'lucide-react'
 import { ocrApi, type OcrResult } from '@/services/ocr-api'
 
+export const DOC_TYPE_LABEL: Record<string, string> = {
+  invoice: 'Factura',
+  cv: 'CV',
+  payslip: 'Nómina',
+  contract: 'Contrato',
+  id_document: 'Documento identidad',
+  bank_statement: 'Extracto bancario',
+  delivery_note: 'Albarán',
+  receipt: 'Recibo / ticket',
+}
+
 const LANGS = [
   { value: 'es', label: 'Español' },
   { value: 'en', label: 'Inglés' },
@@ -130,6 +141,14 @@ export default function OcrPlayground() {
                     · idioma <Badge variant="outline">{result.lang}</Badge>{' '}
                     · {result.page_count} página(s) · {result.processing_ms} ms
                     {result.cached && <> · <Badge variant="secondary">desde caché</Badge></>}
+                    {result.classification?.doc_type && (
+                      <> · tipo{' '}
+                        <Badge>
+                          {DOC_TYPE_LABEL[result.classification.doc_type] ?? result.classification.doc_type}
+                          {' '}({Math.round(result.classification.confidence * 100)}%)
+                        </Badge>
+                      </>
+                    )}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

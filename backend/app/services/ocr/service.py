@@ -12,6 +12,7 @@ import anyio.to_thread
 from app.config import settings
 from app.exceptions import AppException, OcrEngineException
 from app.schemas.ocr import OcrResult
+from app.services.ocr.classifier import classify
 from app.services.ocr.engine import get_engine
 from app.services.ocr.loader import load_pages
 from app.services.ocr.storage import read_file
@@ -49,7 +50,7 @@ def _process_sync(
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     full_text = "\n\n".join(p.text for p in ocr_pages if p.text)
-    return OcrResult(
+    result = OcrResult(
         engine=engine.name,
         lang=lang,
         page_count=len(ocr_pages),
@@ -57,6 +58,8 @@ def _process_sync(
         text=full_text,
         processing_ms=elapsed_ms,
     )
+    result.classification = classify(result)
+    return result
 
 
 async def run_ocr(

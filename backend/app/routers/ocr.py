@@ -13,6 +13,7 @@ from app.models.user import User
 from app.ratelimit import rate_limit
 from app.repositories import ocr_job as ocr_repo
 from app.schemas.ocr import (
+    ClassifyOut,
     OcrJobListResponse,
     OcrJobOut,
     OcrJobSummary,
@@ -20,7 +21,12 @@ from app.schemas.ocr import (
     OcrStats,
 )
 from app.services.ocr.engine import is_ready, warmed_langs
-from app.services.ocr.jobs import content_length_guard, create_ocr_job, run_sync_ocr
+from app.services.ocr.jobs import (
+    classify_document,
+    content_length_guard,
+    create_ocr_job,
+    run_sync_ocr,
+)
 
 router = APIRouter(prefix="/api/v1/ocr", tags=["ocr"])
 
@@ -44,6 +50,18 @@ async def ocr_scan(
 ) -> OcrResult:
     """Synchronous OCR playground for the dashboard."""
     return await run_sync_ocr(file, lang)
+
+
+@router.post(
+    "/classify",
+    dependencies=[require_permission("ocr.use"), _ocr_rl, _sync_size_guard],
+)
+async def ocr_classify(
+    file: UploadFile = FileParam(...),
+    lang: str | None = Form(default=None),
+) -> ClassifyOut:
+    """OCR + document-type classification for the dashboard."""
+    return await classify_document(file, lang)
 
 
 @router.post(
@@ -74,11 +92,15 @@ async def ocr_create_job(
 async def ocr_list_jobs(
     page: int = 1,
     per_page: int = 20,
+    status: str | None = None,
+    doc_type: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> OcrJobListResponse:
     per_page = max(1, min(per_page, 100))
     page = max(1, page)
-    items, total = await ocr_repo.list_jobs(db, page=page, per_page=per_page)
+    items, total = await ocr_repo.list_jobs(
+        db, status=status, doc_type=doc_type, page=page, per_page=per_page
+    )
     return OcrJobListResponse(
         data=[OcrJobSummary.model_validate(j) for j in items],
         total=total,

@@ -25,6 +25,12 @@ class OcrPage(BaseModel):
     text: str = Field(description="Page lines joined by newline, in reading order")
 
 
+class DocClassification(BaseModel):
+    doc_type: str | None = Field(description="Detected document type, or null if unknown")
+    confidence: float = Field(ge=0.0, le=1.0, description="Dominance of the top type")
+    scores: dict[str, float] = Field(default_factory=dict, description="Normalised score per type")
+
+
 class OcrResult(BaseModel):
     engine: str
     lang: str
@@ -33,6 +39,7 @@ class OcrResult(BaseModel):
     text: str = Field(description="Full document text")
     processing_ms: int
     cached: bool = False
+    classification: DocClassification | None = None
 
 
 class OcrJobSummary(BaseModel):
@@ -46,6 +53,7 @@ class OcrJobSummary(BaseModel):
     lang: str
     page_count: int | None = None
     processing_ms: int | None = None
+    doc_type: str | None = None
     callback_url: str | None = None
     callback_status: str | None = None
     error: str | None = None
@@ -67,6 +75,15 @@ class OcrJobListResponse(BaseModel):
     per_page: int
 
 
+class ClassifyOut(BaseModel):
+    doc_type: str | None
+    confidence: float
+    scores: dict[str, float]
+    lang: str
+    page_count: int
+    text_excerpt: str
+
+
 class OcrStats(BaseModel):
     pending: int = 0
     processing: int = 0
@@ -75,3 +92,4 @@ class OcrStats(BaseModel):
     oldest_pending_age_seconds: float | None = None
     processing_ms_avg: float | None = None
     processing_ms_p95: float | None = None
+    by_doc_type: dict[str, int] = {}

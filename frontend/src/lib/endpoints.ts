@@ -76,6 +76,7 @@ export const endpoints = {
   },
   ocr: {
     scan:      `${API_BASE}/ocr/scan`,
+    classify:  `${API_BASE}/ocr/classify`,
     jobs:      `${API_BASE}/ocr/jobs`,
     jobDetail: (id: string) => `${API_BASE}/ocr/jobs/${id}`,
     stats:     `${API_BASE}/ocr/stats`,

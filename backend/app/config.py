@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     ocr_allowed_langs: str = ""  # comma list; empty -> built-in PaddleOCR language set
     ocr_sort_reading_order: bool = True
 
+    # Document classification (runs on the OCR text)
+    ocr_classifier: Literal["none", "rules"] = "rules"
+    ocr_classifier_min_score: float = 2.5  # min raw weight of matched signals
+    ocr_classifier_min_confidence: float = 0.4  # min dominance of the top type
+
     # Sync-endpoint result cache (content-hash keyed, in-process)
     ocr_sync_cache_ttl_seconds: int = 300  # 0 disables
     ocr_sync_cache_max_entries: int = 64

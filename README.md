@@ -73,8 +73,27 @@ curl -X POST http://localhost:8087/api/ext/ocr \
   derecha; desactivable con `OCR_SORT_READING_ORDER=false`).
 - Resultados idénticos (mismo contenido + idioma) se sirven de **caché**
   (`cached: true`) durante `OCR_SYNC_CACHE_TTL_SECONDS`.
+- Incluye `classification` con el **tipo de documento** detectado (ver abajo).
 - `lang` inválido → `422`. Límites: `OCR_SYNC_MAX_BYTES` (10 MB),
   `OCR_SYNC_MAX_PAGES` (5), `OCR_MAX_IMAGE_MEGAPIXELS` (40, anti-bomba). Para más, usa los jobs.
+
+### Clasificación de documento — `POST /api/ext/ocr/classify`  *(scope `ocr:write`)*
+
+Reconoce el tipo a partir del texto OCR (reglas de keywords, sin dependencias ni entrenamiento):
+`invoice`, `cv`, `payslip`, `contract`, `id_document`, `bank_statement`, `delivery_note`, `receipt`.
+
+```bash
+curl -X POST http://localhost:8087/api/ext/ocr/classify \
+  -H "Authorization: Bearer $TOKEN" -F file=@factura.pdf
+# → { "doc_type": "invoice", "confidence": 0.86,
+#     "scores": {"invoice": 0.86, "receipt": 0.14},
+#     "lang": "es", "page_count": 1, "text_excerpt": "FACTURA Nº …" }
+```
+
+`doc_type` es `null` si ninguna clase supera `OCR_CLASSIFIER_MIN_SCORE` /
+`OCR_CLASSIFIER_MIN_CONFIDENCE`. El mismo `classification` viaja en la respuesta de
+`/api/ext/ocr` y se guarda como `doc_type` en los jobs (filtrable en `/jobs?doc_type=…`,
+agregado en `/stats.by_doc_type`). Desactivable con `OCR_CLASSIFIER=none`.
 
 ### Asíncrono — `POST /api/ext/ocr/jobs`  *(scope `ocr:write`)*
 
@@ -128,6 +147,8 @@ está fijado, hosts fuera de la lista). Los redirects no se siguen.
 | `OCR_MAX_CONCURRENCY` | `2` | inferencias OCR simultáneas (por proceso) |
 | `OCR_ALLOWED_LANGS` | *(vacío)* | idiomas permitidos; vacío = set nativo de PaddleOCR |
 | `OCR_SORT_READING_ORDER` | `true` | ordenar líneas por orden de lectura |
+| `OCR_CLASSIFIER` | `rules` | clasificador de tipo de documento (`rules` o `none`) |
+| `OCR_CLASSIFIER_MIN_SCORE` / `OCR_CLASSIFIER_MIN_CONFIDENCE` | `2.5` / `0.4` | umbrales para asignar un tipo |
 | `OCR_SYNC_CACHE_TTL_SECONDS` / `OCR_SYNC_CACHE_MAX_ENTRIES` | `300` / `64` | caché del endpoint síncrono (0 = off) |
 | `OCR_WORKER_INTERVAL_SECONDS` | `2` | frecuencia de sondeo del worker |
 | `OCR_JOB_MAX_ATTEMPTS` | `3` | reintentos antes de marcar el job como `error` |
@@ -161,7 +182,8 @@ Arquitectura OCR:
 - `app/routers/ext_ocr.py` (API externa) y `app/routers/ocr.py` (panel).
 - `app/ocr/worker.py` + `app/ocr/processor.py` — worker de la cola (servicio `ocr-worker`):
   reclaim de jobs colgados → claim → OCR → callback → purga por retención.
-- `app/services/ocr/langs.py` (validación de idioma), `cache.py` (caché síncrona).
+- `app/services/ocr/langs.py` (validación de idioma), `cache.py` (caché síncrona),
+  `classifier.py` (tipo de documento por reglas; pluggable para ML/LLM más adelante).
 
 ### Readiness
 
@@ -179,3 +201,8 @@ Arquitectura OCR:
   pero no hay reenvío automático posterior.
 - **`paddleocr` fijado a 2.x**; 3.x / PP-OCRv5 da mejor precisión (el wrapper de `engine.py`
   aísla el cambio).
+- **Clasificador por reglas**: keywords ES/EN, un único tipo dominante por documento, y
+  depende de que el OCR extraiga texto legible. Para más tipos / idiomas: subir el set de
+  `classifier.py`, o enchufar un backend `ml` (TF-IDF) o `llm` (misma interfaz `classify()`).
+  Paso natural siguiente: **extracción de campos** dirigida por tipo (total/fecha/CIF en
+  facturas, etc.).

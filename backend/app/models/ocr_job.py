@@ -37,6 +37,7 @@ class OcrJob(Base):
     lang: Mapped[str] = mapped_column(String(16), default="es")
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     processing_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    doc_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

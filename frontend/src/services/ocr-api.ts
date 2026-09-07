@@ -15,6 +15,12 @@ export interface OcrPage {
   text: string
 }
 
+export interface DocClassification {
+  doc_type: string | null
+  confidence: number
+  scores: Record<string, number>
+}
+
 export interface OcrResult {
   engine: string
   lang: string
@@ -23,6 +29,16 @@ export interface OcrResult {
   text: string
   processing_ms: number
   cached: boolean
+  classification: DocClassification | null
+}
+
+export interface ClassifyResult {
+  doc_type: string | null
+  confidence: number
+  scores: Record<string, number>
+  lang: string
+  page_count: number
+  text_excerpt: string
 }
 
 export type OcrJobStatus = 'pending' | 'processing' | 'done' | 'error'
@@ -37,6 +53,7 @@ export interface OcrJobSummary {
   lang: string
   page_count: number | null
   processing_ms: number | null
+  doc_type: string | null
   callback_url: string | null
   callback_status: string | null
   error: string | null
@@ -65,6 +82,7 @@ export interface OcrStats {
   oldest_pending_age_seconds: number | null
   processing_ms_avg: number | null
   processing_ms_p95: number | null
+  by_doc_type: Record<string, number>
 }
 
 function buildForm(file: File, lang?: string, callbackUrl?: string): FormData {
@@ -78,6 +96,13 @@ function buildForm(file: File, lang?: string, callbackUrl?: string): FormData {
 export const ocrApi = {
   async scan(file: File, lang?: string): Promise<OcrResult> {
     const { data } = await axios.post(endpoints.ocr.scan, buildForm(file, lang), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return data
+  },
+
+  async classify(file: File, lang?: string): Promise<ClassifyResult> {
+    const { data } = await axios.post(endpoints.ocr.classify, buildForm(file, lang), {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return data
