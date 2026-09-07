@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AuthenticatedLayout } from '@/layouts'
 import { Main } from '@/components/layout'
+import { MetricStatCard } from '@/components/metric-stat-card'
+import { PaginationFooter } from '@/components/pagination-footer'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -20,9 +22,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Loader2, RefreshCw, Send } from 'lucide-react'
+import { CheckCircle2, Clock, Layers, Loader2, RefreshCw, Send, XCircle } from 'lucide-react'
 import { ocrApi, type OcrJobStatus, type OcrJobSummary } from '@/services/ocr-api'
 import { DOC_TYPE_LABEL } from './index'
+
+const PER_PAGE = 20
 
 const STATUS_VARIANT: Record<OcrJobStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   pending: 'outline',
@@ -40,11 +44,12 @@ export default function OcrJobs() {
   const [file, setFile] = useState<File | null>(null)
   const [lang, setLang] = useState('es')
   const [callbackUrl, setCallbackUrl] = useState('')
+  const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<string | null>(null)
 
   const jobsQuery = useQuery({
-    queryKey: ['ocr-jobs'],
-    queryFn: () => ocrApi.listJobs({ per_page: 50 }),
+    queryKey: ['ocr-jobs', page],
+    queryFn: () => ocrApi.listJobs({ page, per_page: PER_PAGE }),
     refetchInterval: (query) =>
       query.state.data?.data.some((j) => j.status === 'pending' || j.status === 'processing')
         ? 3000
@@ -70,56 +75,77 @@ export default function OcrJobs() {
     onSuccess: (job) => {
       setFile(null)
       setCallbackUrl('')
+      setPage(1)
       setSelected(job.id)
       queryClient.invalidateQueries({ queryKey: ['ocr-jobs'] })
       queryClient.invalidateQueries({ queryKey: ['ocr-stats'] })
     },
   })
 
-  const jobs: OcrJobSummary[] = jobsQuery.data?.data ?? []
+  const list = jobsQuery.data
+  const jobs: OcrJobSummary[] = list?.data ?? []
   const stats = statsQuery.data
+  const total = list?.total ?? 0
+  const lastPage = Math.max(1, Math.ceil(total / PER_PAGE))
 
   return (
     <AuthenticatedLayout title="Trabajos OCR">
       <Main>
-        <div className="grid flex-1 items-start gap-6 md:gap-8 max-w-5xl">
+        <div className="grid flex-1 items-start gap-4 md:gap-8">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Trabajos OCR (asíncrono)</h2>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-muted-foreground">
               Encola documentos; el worker los procesa en segundo plano. Si indicas un
               <code className="mx-1 rounded bg-muted px-1">callback_url</code>
               recibirás el resultado por webhook.
             </p>
           </div>
 
-          {stats && (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {[
-                { label: 'En cola', value: stats.pending },
-                { label: 'Procesando', value: stats.processing },
-                { label: 'Completados', value: stats.done },
-                { label: 'Errores', value: stats.error },
-              ].map((s) => (
-                <Card key={s.label}>
-                  <CardContent className="p-4">
-                    <div className="text-2xl font-semibold tabular-nums">{s.value}</div>
-                    <div className="text-xs text-muted-foreground">{s.label}</div>
-                  </CardContent>
-                </Card>
-              ))}
-              {stats.processing_ms_avg != null && (
-                <p className="col-span-2 text-xs text-muted-foreground sm:col-span-4">
-                  Latencia media {Math.round(stats.processing_ms_avg)} ms
-                  {stats.processing_ms_p95 != null && ` · p95 ${Math.round(stats.processing_ms_p95)} ms`}
-                  {stats.oldest_pending_age_seconds != null &&
-                    ` · pendiente más antiguo hace ${Math.round(stats.oldest_pending_age_seconds)} s`}
-                </p>
-              )}
-            </div>
-          )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricStatCard
+              title="En cola"
+              value={stats?.pending ?? 0}
+              subtitle={
+                stats?.oldest_pending_age_seconds != null
+                  ? `más antiguo hace ${Math.round(stats.oldest_pending_age_seconds)} s`
+                  : 'Sin pendientes'
+              }
+              icon={Clock}
+              sparklineColor="#f59e0b"
+            />
+            <MetricStatCard
+              title="Procesando"
+              value={stats?.processing ?? 0}
+              subtitle="En el worker ahora"
+              icon={Layers}
+              sparklineColor="#6366f1"
+            />
+            <MetricStatCard
+              title="Completados"
+              value={stats?.done ?? 0}
+              subtitle={
+                stats?.processing_ms_avg != null
+                  ? `latencia media ${Math.round(stats.processing_ms_avg)} ms`
+                  : '—'
+              }
+              icon={CheckCircle2}
+              sparklineColor="#10b981"
+            />
+            <MetricStatCard
+              title="Errores"
+              value={stats?.error ?? 0}
+              subtitle="Tras agotar reintentos"
+              icon={XCircle}
+              sparklineColor="#f87171"
+            />
+          </div>
 
           <Card>
-            <CardContent className="pt-6">
+            <CardHeader>
+              <CardTitle>Encolar trabajo</CardTitle>
+              <CardDescription>Imagen o PDF. El resultado se consulta abajo o por webhook.</CardDescription>
+            </CardHeader>
+            <CardContent>
               <form
                 className="flex flex-col gap-4"
                 onSubmit={(e) => {
@@ -170,18 +196,26 @@ export default function OcrJobs() {
           </Card>
 
           <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">Historial</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-2"
-                onClick={() => jobsQuery.refetch()}
-              >
-                <RefreshCw className="h-3.5 w-3.5" /> Actualizar
-              </Button>
+            <CardHeader>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Layers className="h-5 w-5" />
+                    Historial
+                  </CardTitle>
+                  <CardDescription>Trabajos encolados desde el panel y desde la API.</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-2"
+                  onClick={() => jobsQuery.refetch()}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" /> Actualizar
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -202,7 +236,7 @@ export default function OcrJobs() {
                         className="cursor-pointer"
                         onClick={() => setSelected(job.id)}
                       >
-                        <TableCell className="font-medium">{job.original_filename ?? job.id}</TableCell>
+                        <TableCell className="font-medium">{job.original_filename ?? job.id.slice(0, 8)}</TableCell>
                         <TableCell><StatusBadge status={job.status} /></TableCell>
                         <TableCell>
                           {job.doc_type ? (
@@ -229,14 +263,22 @@ export default function OcrJobs() {
                 </Table>
               </div>
             </CardContent>
+            <PaginationFooter
+              currentPage={list?.page ?? 1}
+              lastPage={lastPage}
+              perPage={list?.per_page ?? PER_PAGE}
+              total={total}
+              noun="trabajos"
+              onPageChange={setPage}
+            />
           </Card>
 
           {selected && detailQuery.data && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">
+                <CardTitle className="flex items-center gap-2 text-base">
                   Trabajo {detailQuery.data.id.slice(0, 8)}
-                  <span className="ml-2"><StatusBadge status={detailQuery.data.status} /></span>
+                  <StatusBadge status={detailQuery.data.status} />
                 </CardTitle>
                 {detailQuery.data.callback_status && (
                   <CardDescription>callback: {detailQuery.data.callback_status}</CardDescription>
