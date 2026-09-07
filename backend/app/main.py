@@ -1,3 +1,9 @@
+import asyncio
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+import anyio.to_thread
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -29,6 +35,26 @@ from app.routers import (
 from app.routers import (
     settings as settings_router,
 )
+from app.services.ocr.engine import warmup as ocr_warmup
+
+logger = logging.getLogger("app.main")
+_bg_tasks: set[asyncio.Task] = set()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    if settings.ocr_warmup_on_startup and settings.ocr_engine != "fake":
+        async def _warm() -> None:
+            try:
+                await anyio.to_thread.run_sync(ocr_warmup, settings.ocr_warmup_langs_list)
+            except Exception:
+                logger.exception("OCR warmup falló")
+
+        task = asyncio.create_task(_warm())
+        _bg_tasks.add(task)
+        task.add_done_callback(_bg_tasks.discard)
+    yield
+
 
 app = FastAPI(
     title=settings.app_name,
@@ -37,6 +63,7 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
     redirect_slashes=False,
+    lifespan=lifespan,
 )
 
 # ── Middleware stack (order matters) ──────────────────────────────────────────

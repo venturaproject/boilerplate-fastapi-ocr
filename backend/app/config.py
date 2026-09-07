@@ -64,13 +64,42 @@ class Settings(BaseSettings):
     ocr_max_upload_bytes: int = 52_428_800
     ocr_max_concurrency: int = 2
     ocr_worker_interval_seconds: float = 2.0
-    ocr_job_retention_days: int = 7
-    ocr_callback_timeout_seconds: int = 10
     ocr_model_dir: str = "/app/backend/.paddlex"
+
+    # Job queue resilience
+    ocr_job_max_attempts: int = 3
+    ocr_job_stale_seconds: int = 900  # a "processing" job older than this is reclaimed
+
+    # Retention / purge
+    ocr_job_retention_days: int = 7
+    ocr_purge_interval_seconds: float = 3600.0
+
+    # Webhook callbacks
+    ocr_callback_timeout_seconds: int = 10
+    ocr_callback_allow_private: bool = False  # allow callbacks to private/loopback IPs
+    ocr_callback_allowed_hosts: str = ""  # comma list; empty = any public host
+    ocr_callback_signing_secret: str = ""  # empty -> falls back to secret_key
+
+    # Model warmup
+    ocr_warmup_on_startup: bool = True
+    ocr_warmup_langs: str = ""  # comma list; empty -> [ocr_lang]
 
     def throttle(self, raw: str) -> tuple[int, int]:
         limit, per = raw.split("/", 1)
         return int(limit), int(per)
+
+    @property
+    def ocr_callback_allowed_hosts_list(self) -> list[str]:
+        return [h.strip().lower() for h in self.ocr_callback_allowed_hosts.split(",") if h.strip()]
+
+    @property
+    def ocr_warmup_langs_list(self) -> list[str]:
+        langs = [x.strip() for x in self.ocr_warmup_langs.split(",") if x.strip()]
+        return langs or [self.ocr_lang]
+
+    @property
+    def ocr_callback_secret(self) -> str:
+        return self.ocr_callback_signing_secret or self.secret_key
 
     @property
     def database_url(self) -> str:

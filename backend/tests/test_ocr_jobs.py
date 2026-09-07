@@ -53,8 +53,13 @@ async def test_job_listing_only_shows_own_client(client, ocr_token, ocr_token_re
     assert r.json()["total"] == 0
 
 
-async def test_job_fires_callback(client, ocr_token, monkeypatch):
-    import app.ocr.processor as processor
+async def test_job_fires_signed_callback(client, ocr_token, monkeypatch):
+    import hashlib
+    import hmac
+    import json as _json
+
+    import app.services.ocr.callback as cb
+    from app.config import settings
 
     received: dict = {}
 
@@ -72,12 +77,13 @@ async def test_job_fires_callback(client, ocr_token, monkeypatch):
         async def __aexit__(self, *args) -> bool:
             return False
 
-        async def post(self, url: str, json: dict) -> _FakeResp:
+        async def post(self, url: str, content: bytes, headers: dict) -> _FakeResp:
             received["url"] = url
-            received["json"] = json
+            received["content"] = content
+            received["headers"] = headers
             return _FakeResp()
 
-    monkeypatch.setattr(processor.httpx, "AsyncClient", _FakeClient)
+    monkeypatch.setattr(cb.httpx, "AsyncClient", _FakeClient)
 
     r = await client.post(
         JOBS,
@@ -86,14 +92,25 @@ async def test_job_fires_callback(client, ocr_token, monkeypatch):
         headers=_auth(ocr_token),
     )
     assert r.status_code == 202
+    job_id = r.json()["id"]
 
     await drain_once()
 
     assert received["url"] == "https://example.test/hook"
-    assert received["json"]["status"] == "done"
-    assert received["json"]["result"]["page_count"] == 1
+    payload = _json.loads(received["content"])
+    assert payload["status"] == "done"
+    assert payload["result"]["page_count"] == 1
 
-    r = await client.get(f"{JOBS}/{r.json()['id']}", headers=_auth(ocr_token))
+    # signature is verifiable with the configured secret
+    ts = received["headers"]["X-OCR-Timestamp"]
+    expected = "sha256=" + hmac.new(
+        settings.ocr_callback_secret.encode(),
+        ts.encode() + b"." + received["content"],
+        hashlib.sha256,
+    ).hexdigest()
+    assert hmac.compare_digest(expected, received["headers"]["X-OCR-Signature"])
+
+    r = await client.get(f"{JOBS}/{job_id}", headers=_auth(ocr_token))
     assert r.json()["callback_status"] == "http_200"
 
 

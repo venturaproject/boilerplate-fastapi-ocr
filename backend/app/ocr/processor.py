@@ -1,4 +1,4 @@
-"""OCR job queue processor — claims pending jobs, runs OCR, fires callbacks.
+"""OCR job queue processor — reclaim stragglers, claim pending jobs, run OCR, fire callbacks, purge.
 
 Mirrors the pattern of `app.events.worker` / `app.events.outbox`.
 """
@@ -8,16 +8,25 @@ from __future__ import annotations
 import logging
 import uuid
 
-import httpx
-
 from app.config import settings
 from app.database import AsyncSessionLocal
+from app.models.ocr_job import OcrJob
 from app.repositories import ocr_job as ocr_repo
 from app.schemas.ocr import OcrJobOut
 from app.services.ocr import run_ocr
-from app.services.ocr.storage import read_file
+from app.services.ocr.callback import deliver as deliver_callback
+from app.services.ocr.storage import delete_job_files, read_file
 
 logger = logging.getLogger("app.ocr.worker")
+
+
+async def _reclaim() -> int:
+    async with AsyncSessionLocal() as db, db.begin():
+        return await ocr_repo.reclaim_stale_jobs(
+            db,
+            stale_seconds=settings.ocr_job_stale_seconds,
+            max_attempts=settings.ocr_job_max_attempts,
+        )
 
 
 async def _claim(batch_size: int) -> list[uuid.UUID]:
@@ -40,12 +49,19 @@ async def _process_one(job_id: uuid.UUID) -> None:
         data = read_file(storage_path)
         result = await run_ocr(data, content_type, lang, filename=filename, max_pages=None)
     except Exception as exc:
-        logger.exception("OCR job %s failed", job_id)
+        logger.exception("OCR job %s falló", job_id)
         async with AsyncSessionLocal() as db, db.begin():
             job = await ocr_repo.get_job(db, job_id)
-            if job is not None:
-                await ocr_repo.mark_error(db, job, error=f"{type(exc).__name__}: {exc}")
-        await _fire_callback(job_id)
+            if job is None:
+                return
+            status = await ocr_repo.mark_failed(
+                db,
+                job,
+                error=f"{type(exc).__name__}: {exc}",
+                max_attempts=settings.ocr_job_max_attempts,
+            )
+        if status == OcrJob.STATUS_ERROR:
+            await _fire_callback(job_id)
         return
 
     async with AsyncSessionLocal() as db, db.begin():
@@ -68,27 +84,29 @@ async def _fire_callback(job_id: uuid.UUID) -> None:
         url = job.callback_url
         payload = OcrJobOut.model_validate(job).model_dump(mode="json")
 
-    status = "unsent"
-    try:
-        async with httpx.AsyncClient(timeout=settings.ocr_callback_timeout_seconds) as client:
-            for _attempt in range(2):
-                try:
-                    resp = await client.post(url, json=payload)
-                    status = f"http_{resp.status_code}"
-                    if resp.is_success:
-                        break
-                except httpx.HTTPError as exc:
-                    status = f"error:{type(exc).__name__}"
-    finally:
-        async with AsyncSessionLocal() as db, db.begin():
-            job = await ocr_repo.get_job(db, job_id)
-            if job is not None:
-                await ocr_repo.set_callback_status(db, job, status)
+    status = await deliver_callback(url, payload)
+
+    async with AsyncSessionLocal() as db, db.begin():
+        job = await ocr_repo.get_job(db, job_id)
+        if job is not None:
+            await ocr_repo.set_callback_status(db, job, status)
 
 
 async def drain_once(batch_size: int = 5) -> int:
-    """Claim and fully process up to `batch_size` pending jobs. Returns how many were claimed."""
+    """Reclaim stragglers, then claim and fully process up to `batch_size` pending jobs."""
+    await _reclaim()
     job_ids = await _claim(batch_size)
     for job_id in job_ids:
         await _process_one(job_id)
     return len(job_ids)
+
+
+async def purge_once() -> int:
+    """Delete finished jobs (and their files) older than the retention window."""
+    async with AsyncSessionLocal() as db, db.begin():
+        purged = await ocr_repo.purge_expired_jobs(db, retention_days=settings.ocr_job_retention_days)
+    for job_id in purged:
+        delete_job_files(job_id)
+    if purged:
+        logger.info("ocr-worker: %s job(s) purgado(s) por retención", len(purged))
+    return len(purged)

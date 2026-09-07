@@ -1,7 +1,7 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ocr_job import OcrJob
@@ -104,6 +104,22 @@ async def mark_done(db: AsyncSession, job: OcrJob, *, result: dict, page_count: 
     await db.flush()
 
 
+async def mark_failed(db: AsyncSession, job: OcrJob, *, error: str, max_attempts: int) -> str:
+    """Retry (-> pending) while attempts remain, otherwise fail permanently (-> error).
+
+    Returns the resulting status.
+    """
+    job.error = error[:4000]
+    if job.attempts >= max_attempts:
+        job.status = OcrJob.STATUS_ERROR
+        job.finished_at = datetime.now(tz=UTC)
+    else:
+        job.status = OcrJob.STATUS_PENDING
+        job.started_at = None
+    await db.flush()
+    return job.status
+
+
 async def mark_error(db: AsyncSession, job: OcrJob, *, error: str) -> None:
     job.status = OcrJob.STATUS_ERROR
     job.error = error[:4000]
@@ -114,3 +130,41 @@ async def mark_error(db: AsyncSession, job: OcrJob, *, error: str) -> None:
 async def set_callback_status(db: AsyncSession, job: OcrJob, status: str) -> None:
     job.callback_status = status[:64]
     await db.flush()
+
+
+async def reclaim_stale_jobs(db: AsyncSession, *, stale_seconds: int, max_attempts: int) -> int:
+    """Requeue (or fail) jobs stuck in 'processing' — worker crash, OOM, lost pod."""
+    cutoff = datetime.now(tz=UTC) - timedelta(seconds=stale_seconds)
+    result = await db.execute(
+        select(OcrJob)
+        .where(OcrJob.status == OcrJob.STATUS_PROCESSING, OcrJob.started_at < cutoff)
+        .with_for_update(skip_locked=True)
+    )
+    jobs = list(result.scalars().all())
+    for job in jobs:
+        await mark_failed(
+            db,
+            job,
+            error="Procesamiento interrumpido (worker perdido o timeout); reintentando.",
+            max_attempts=max_attempts,
+        )
+    await db.flush()
+    return len(jobs)
+
+
+async def purge_expired_jobs(db: AsyncSession, *, retention_days: int, limit: int = 500) -> list[uuid.UUID]:
+    """Delete finished jobs older than the retention window. Returns purged ids (for file cleanup)."""
+    cutoff = datetime.now(tz=UTC) - timedelta(days=retention_days)
+    result = await db.execute(
+        select(OcrJob.id)
+        .where(
+            OcrJob.created_at < cutoff,
+            OcrJob.status.in_((OcrJob.STATUS_DONE, OcrJob.STATUS_ERROR)),
+        )
+        .limit(limit)
+    )
+    ids = [row[0] for row in result.all()]
+    if ids:
+        await db.execute(delete(OcrJob).where(OcrJob.id.in_(ids)))
+        await db.flush()
+    return ids

@@ -1,7 +1,7 @@
 .PHONY: up down restart build build-no-cache logs logs-backend logs-ocr-worker ps \
         shell-backend shell-frontend shell-db \
         migrate makemigration seed \
-        process-outbox process-inbox process-ocr test-backend \
+        process-outbox process-inbox process-ocr purge-ocr test-backend \
         lint tsc \
         lint-backend lint-backend-fix type-check-backend \
         install-frontend \
@@ -76,6 +76,9 @@ process-inbox: ## Alias: el worker drena inbox y outbox en el mismo --once
 
 process-ocr: ## Procesa un lote de jobs OCR pendientes y sale
 	$(BE) uv run python -m app.ocr.worker --once --batch-size 20
+
+purge-ocr: ## Purga jobs OCR vencidos (retención) y sus archivos
+	$(BE) uv run python -m app.ocr.worker --purge
 
 test-backend: ## Ejecuta la suite de pytest del backend
 	$(BE) uv run pytest -q

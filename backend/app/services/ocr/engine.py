@@ -12,6 +12,8 @@ import logging
 import threading
 from typing import Any, Protocol
 
+import numpy as np
+
 from app.config import settings
 from app.schemas.ocr import OcrLine, OcrPage
 from app.services.ocr.loader import PageImage
@@ -139,3 +141,17 @@ def get_engine() -> OcrEngine:
     if settings.ocr_engine == "fake":
         return FakeOcrEngine()
     return PaddleOcrEngine()
+
+
+def warmup(langs: list[str]) -> None:
+    """Load models ahead of the first request (blocking; run in a thread from async code)."""
+    engine = get_engine()
+    if engine.name == "fake":
+        return
+    blank = PageImage(index=1, width=32, height=32, array=np.full((32, 32, 3), 255, dtype=np.uint8))
+    for lang in dict.fromkeys(langs):
+        try:
+            engine.recognize_pages([blank], lang)
+            logger.info("PaddleOCR warmup listo (lang=%s)", lang)
+        except Exception:
+            logger.exception("PaddleOCR warmup falló (lang=%s)", lang)

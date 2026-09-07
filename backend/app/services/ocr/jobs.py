@@ -17,6 +17,7 @@ from app.models.ocr_job import OcrJob
 from app.repositories import ocr_job as ocr_repo
 from app.schemas.ocr import OcrResult
 from app.services.ocr import run_ocr
+from app.services.ocr.callback import validate_callback_url
 from app.services.ocr.loader import SUPPORTED_CONTENT_TYPES, normalize_content_type
 from app.services.ocr.storage import save_upload
 
@@ -41,19 +42,6 @@ async def _read_upload(file: UploadFile, *, max_bytes: int) -> bytes:
             f"El archivo pesa {len(data)} bytes; el máximo permitido es {max_bytes}."
         )
     return data
-
-
-def _validate_callback_url(url: str | None) -> str | None:
-    if not url:
-        return None
-    url = url.strip()
-    if not url:
-        return None
-    if not (url.startswith("http://") or url.startswith("https://")):
-        raise ValidationException("callback_url debe ser una URL http(s).")
-    if len(url) > 1024:
-        raise ValidationException("callback_url demasiado larga (máx. 1024).")
-    return url
 
 
 def _resolve_lang(lang: str | None) -> str:
@@ -83,7 +71,7 @@ async def create_ocr_job(
 ) -> OcrJob:
     content_type = _ensure_supported(file)
     data = await _read_upload(file, max_bytes=settings.ocr_max_upload_bytes)
-    callback = _validate_callback_url(callback_url)
+    callback = validate_callback_url(callback_url)
 
     job_id = uuid.uuid4()
     storage_path = await save_upload(job_id, file.filename, data)

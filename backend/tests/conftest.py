@@ -64,12 +64,15 @@ def _fake_ocr_engine(tmp_path) -> Iterator[None]:
 
     prev_engine = settings.ocr_engine
     prev_media = settings.media_dir
+    prev_allow_private = settings.ocr_callback_allow_private
     settings.ocr_engine = "fake"
     settings.media_dir = str(tmp_path / "media")
+    settings.ocr_callback_allow_private = True  # tests post to non-resolvable hosts
     ocr_engine.get_engine.cache_clear()
     yield
     settings.ocr_engine = prev_engine
     settings.media_dir = prev_media
+    settings.ocr_callback_allow_private = prev_allow_private
     ocr_engine.get_engine.cache_clear()
 
 
