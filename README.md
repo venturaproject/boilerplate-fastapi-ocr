@@ -96,8 +96,8 @@ curl -X POST http://localhost:8087/api/ext/ocr \
 ```
 
 - **Formato de salida** con `?format=` — `json` (por defecto) · `text` · `hocr` · `alto` ·
-  `pdf` (PDF buscable = imagen + capa de texto invisible). `GET /api/ext/ocr/jobs/{id}?format=`
-  admite `text|hocr|alto` (el `pdf` de un job llegará con el storage enchufable).
+  `pdf` (PDF buscable = imagen + capa de texto invisible). También en
+  `GET /api/ext/ocr/jobs/{id}?format=` (el `pdf` re-lee el original vía el storage).
 - Las líneas salen en **orden de lectura** (filas por `y`, cada fila de izquierda a
   derecha; desactivable con `OCR_SORT_READING_ORDER=false`).
 - Resultados idénticos (mismo contenido + idioma) se sirven de **caché**
@@ -154,9 +154,15 @@ curl -X POST http://localhost:8087/api/ext/ocr/jobs \
 - `GET /api/ext/ocr/jobs/{id}` — estado + `result` completo cuando `status = "done"`.
 - `GET /api/ext/ocr/jobs` — listado paginado **sin** `result` (solo metadatos; los del
   cliente autenticado). Parámetros: `page`, `per_page` (máx. 100), `status`, `doc_type`,
-  `search` (nombre de archivo).
+  `search`, `callback` (`failed` | `pending`), `batch_id`.
 - `GET /api/ext/ocr/stats` — contadores por estado, antigüedad del pendiente más viejo, latencia media/p95.
 - Si se indicó `callback_url`, el worker hace `POST` firmado con el mismo cuerpo que `GET .../jobs/{id}`.
+
+### Lote — `POST /api/ext/ocr/jobs:batch`  *(scope `ocr:write`)*
+
+Varios `files` en un multipart (o **un `.zip`**) → N jobs con el mismo `batch_id`
+(máx. `OCR_BATCH_MAX_FILES`). `GET /api/ext/ocr/batches/{batch_id}` devuelve el desglose
+por estado y la lista de jobs.
 - Envía una cabecera `Idempotency-Key` para que un reintento de red no cree un job duplicado
   (se replica la respuesta original; ver `app/idempotency/`).
 - Un `429` incluye `Retry-After` (segundos). Rate‑limit por defecto `THROTTLE_OCR` (`30/60`).
@@ -177,6 +183,10 @@ está fijado, hosts fuera de la lista). Los redirects no se siguen.
 
 - Un job que falla se reintenta hasta `OCR_JOB_MAX_ATTEMPTS` veces; si el worker se cae a
   mitad, otro lo recupera pasados `OCR_JOB_STALE_SECONDS`.
+- **Webhook con dead-letter**: un callback fallido se reintenta con backoff
+  (`OCR_CALLBACK_BACKOFF_BASE_SECONDS * 2**n`) hasta `OCR_CALLBACK_MAX_ATTEMPTS` y luego
+  queda en *dead-letter* (`next_callback_at = null`). `POST .../jobs/{id}/redeliver`
+  (scope `ocr:write`) lo reencola; el estado va en `callback_status` / `callback_attempts`.
 - Los jobs terminados se borran (con sus archivos) pasados `OCR_JOB_RETENTION_DAYS`
   — automático en el worker cada `OCR_PURGE_INTERVAL_SECONDS`, o manual con `make purge-ocr`.
 - Al arrancar, backend y worker precargan los modelos (`OCR_WARMUP_LANGS`), así la primera
@@ -296,8 +306,9 @@ Arquitectura OCR:
   política de egress de red en entornos hostiles.
 - **Storage por defecto en disco**: `STORAGE_BACKEND=local` comparte el volumen
   `media_data` entre backend y worker. Para multi-nodo, `STORAGE_BACKEND=s3` (extra `s3`).
-- **Callbacks sin dead-letter**: 2 reintentos inmediatos; si fallan, queda `callback_status`
-  pero no hay reenvío automático posterior.
+- **Dead-letter de callbacks sin re-alertas**: tras agotar `OCR_CALLBACK_MAX_ATTEMPTS` el
+  job queda marcado pero no notifica a nadie — hay que consultarlo (`?callback=failed`) o
+  reencolarlo con `redeliver`.
 - **paddleocr pin en 2.x**: `engine.py` ya soporta la API 3.x, pero paddle 3.x falla en
   CPU bajo emulación; subir el pin y verificar en CI x86 es el paso pendiente.
 - **`OCR_MAX_CONCURRENCY` es por proceso**: con N réplicas del worker el paralelismo real es
@@ -315,8 +326,7 @@ Ordenadas por relación valor/esfuerzo:
    `s3`) desacopla el worker del disco compartido.
 3. **Observabilidad** — logs JSON estructurados + `/metrics` Prometheus (histograma de
    latencia OCR, profundidad de cola, hit‑rate de caché, errores de motor).
-4. **Dead‑letter de callbacks** — backoff con más reintentos, registro de intentos por job y
-   endpoint para reenviar manualmente.
+4. *(hecho)* **Dead-letter de callbacks** — backoff + `redeliver` + filtro `?callback=`.
 5. **Cuotas y medición por cliente** — rate‑limit y cuota mensual de páginas por
    `api_client` (base para facturación); los datos ya están en `documents`.
 6. *(hecho)* **Formatos de salida** `?format=text|hocr|alto|pdf` (el `pdf` de un job
@@ -325,7 +335,7 @@ Ordenadas por relación valor/esfuerzo:
    adaptador a un OCR cloud tras la misma interfaz `OcrEngine`.
 8. *(hecho)* **Detección automática de idioma** (`OCR_LANG_AUTODETECT`).
 9. *(hecho)* **Redacción de PII** (`DOCUMENT_REDACT_PII`).
-10. **Endpoint batch** — subir un zip o varios archivos y devolver un `batch_id`.
+10. *(hecho)* **Endpoint batch** `POST /jobs:batch` + `GET /batches/{id}`.
 11. **Rotación de secreto** de `api_client` (hoy solo crear/revocar) y cabeceras
     `X-RateLimit-*` en las respuestas.
 12. *(parcial)* **Clasificador ML/LLM** — `OCR_CLASSIFIER=ml` (TF‑IDF + `scripts/
