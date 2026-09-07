@@ -112,13 +112,28 @@ curl -X POST http://localhost:8087/api/ext/ocr/classify \
   -H "Authorization: Bearer $TOKEN" -F file=@factura.pdf
 # → { "doc_type": "invoice", "confidence": 0.86,
 #     "scores": {"invoice": 0.86, "receipt": 0.14},
-#     "lang": "es", "page_count": 1, "text_excerpt": "FACTURA Nº …" }
+#     "lang": "es", "page_count": 1, "text_excerpt": "FACTURA Nº …",
+#     "extraction": { "doc_type": "invoice",
+#       "fields": { "total": {"value": "121,00", ...}, "tax_id": {...}, "date": {...} } } }
 ```
 
 `doc_type` es `null` si ninguna clase supera `OCR_CLASSIFIER_MIN_SCORE` /
 `OCR_CLASSIFIER_MIN_CONFIDENCE`. El mismo `classification` viaja en la respuesta de
 `/api/ext/ocr` y se guarda como `doc_type` en los jobs (filtrable en `/jobs?doc_type=…`,
-agregado en `/stats.by_doc_type`). Desactivable con `OCR_CLASSIFIER=none`.
+agregado en `/stats.by_doc_type`). Backends: `OCR_CLASSIFIER=rules` (por defecto) ·
+`none` · `ml` (modelo `joblib` entrenado con `scripts/train_classifier.py`, extra `ml`) ·
+`llm` (interfaz + stub, sin proveedor).
+
+### Extracción de campos
+
+Tras clasificar, `OCR_EXTRACTOR=rules` (por defecto; `none` / `llm` disponibles) extrae
+campos estructurados según el tipo — factura: `total`, `date`, `tax_id`, `invoice_number`;
+nómina: `net_pay`, `gross_pay`, `period`; extracto: `iban`, `closing_balance`; DNI:
+`document_number`, `birth_date`… Viaja como `extraction` en la respuesta de `/api/ext/ocr`
+y `/classify`, y se guarda en `documents.extraction`. Cada campo lleva `value` + `raw`.
+
+Con `DOCUMENT_REDACT_PII=true` el extracto guardado (`documents.text_excerpt` y el de
+`/classify`) enmascara email / DNI / NIE / IBAN / teléfono / tarjeta.
 
 ### Asíncrono — `POST /api/ext/ocr/jobs`  *(scope `ocr:write`)*
 
@@ -220,8 +235,10 @@ en el worker de OCR junto con la de jobs.
 | `OCR_MAX_CONCURRENCY` | `2` | inferencias OCR simultáneas (por proceso) |
 | `OCR_ALLOWED_LANGS` | *(vacío)* | idiomas permitidos; vacío = set nativo de PaddleOCR |
 | `OCR_SORT_READING_ORDER` | `true` | ordenar líneas por orden de lectura |
-| `OCR_CLASSIFIER` | `rules` | clasificador de tipo de documento (`rules` o `none`) |
+| `OCR_CLASSIFIER` | `rules` | tipo de documento: `rules` · `none` · `ml` · `llm` |
 | `OCR_CLASSIFIER_MIN_SCORE` / `OCR_CLASSIFIER_MIN_CONFIDENCE` | `2.5` / `0.4` | umbrales para asignar un tipo |
+| `OCR_EXTRACTOR` | `rules` | extracción de campos por tipo: `rules` · `none` · `llm` |
+| `DOCUMENT_REDACT_PII` | `false` | enmascarar email/DNI/NIE/IBAN/teléfono/tarjeta en el extracto |
 | `DOCUMENT_TEXT_EXCERPT_CHARS` | `500` | caracteres del texto OCR guardados en `documents.text_excerpt` (`0` = ninguno) |
 | `DOCUMENT_RETENTION_DAYS` | `0` | antigüedad para purgar filas de `documents` (`0` = conservar siempre) |
 | `OCR_SYNC_CACHE_TTL_SECONDS` / `OCR_SYNC_CACHE_MAX_ENTRIES` | `300` / `64` | caché del endpoint síncrono (0 = off) |
@@ -287,9 +304,8 @@ Arquitectura OCR:
 
 Ordenadas por relación valor/esfuerzo:
 
-1. **Extracción de campos por tipo** — el clasificador ya dice *qué* documento es; el
-   siguiente paso es extraer datos estructurados (total, fecha, CIF/NIF, IBAN, IRPF…).
-   Backend `extractor` enchufable igual que el `classifier` (`OCR_EXTRACTOR=none|rules|llm`).
+1. *(hecho)* **Extracción de campos por tipo** (`OCR_EXTRACTOR=rules`) — falta un
+   backend `llm` con proveedor real.
 2. **Almacenamiento de objetos (S3/MinIO)** para las subidas — desacopla worker del disco
    compartido y permite escalar el worker horizontalmente de verdad.
 3. **Observabilidad** — logs JSON estructurados + `/metrics` Prometheus (histograma de
@@ -303,11 +319,10 @@ Ordenadas por relación valor/esfuerzo:
 7. *(hecho)* **Motor alternativo Tesseract** (`OCR_ENGINE=tesseract`); queda abrir un
    adaptador a un OCR cloud tras la misma interfaz `OcrEngine`.
 8. *(hecho)* **Detección automática de idioma** (`OCR_LANG_AUTODETECT`).
-9. **Redacción de PII** opcional sobre `documents.text_excerpt` (enmascarar email / DNI /
-   IBAN) — relevante porque se procesan nóminas, extractos y documentos de identidad.
+9. *(hecho)* **Redacción de PII** (`DOCUMENT_REDACT_PII`).
 10. **Endpoint batch** — subir un zip o varios archivos y devolver un `batch_id`.
 11. **Rotación de secreto** de `api_client` (hoy solo crear/revocar) y cabeceras
     `X-RateLimit-*` en las respuestas.
-12. **Clasificador ML/LLM** — `classify()` ya es pluggable; añadir un backend TF‑IDF
-    entrenable o uno LLM, y ampliar keywords/idiomas del set por reglas.
+12. *(parcial)* **Clasificador ML/LLM** — `OCR_CLASSIFIER=ml` (TF‑IDF + `scripts/
+    train_classifier.py`) y `llm` (interfaz + stub) ya existen; falta el proveedor LLM real.
 13. *(en curso)* **`paddleocr` 3.x / PP‑OCRv5** — código migrado; falta verificación en x86.
