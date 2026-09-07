@@ -14,17 +14,24 @@ El patrón vertical-slice (`app/domain/<x>/` + `app/repositories/<x>.py` +
 `app/routers/<x>.py`) y la infraestructura de eventos (CQRS · outbox · inbox) quedan como
 puntos de extensión.
 
+### Estructura del repositorio
+
+`backend/` y `frontend/` son **repositorios git independientes** (rama `main` cada uno). Este
+repo raíz versiona solo la capa de infraestructura: `infrastructure/`, `compose*.yml`,
+`Makefile`, `README.md`, `.env.example`.
+
 ## Puesta en marcha
 
 ```bash
 cp .env.example .env          # ajusta SECRET_KEY, credenciales, puertos…
 make build
-make up                       # postgres + backend + ocr-worker + frontend + nginx
+make up                       # postgres · backend · ocr-worker · frontend · nginx (dev añade `worker` de eventos)
 make migrate && make seed     # crea tablas, permisos y un API client de ejemplo ("ocr-demo")
 ```
 
 - API + docs: `http://localhost:8087/api/docs`
-- Panel (playground OCR e historial): `http://localhost:8087/admin` → menú **OCR**
+- Panel: `http://localhost:8087/admin` → menú **OCR** (playground · Trabajos · Documentos).
+  El dashboard muestra métricas de OCR (por tipo de documento, por modo, latencia, actividad).
 - `make seed` imprime el `client_id` / `client_secret` del cliente `ocr-demo`.
 
 > **PaddleOCR es pesado** (`paddlepaddle` ≈ 1 GB) y se instala dentro de la imagen. En
@@ -114,9 +121,14 @@ curl -X POST http://localhost:8087/api/ext/ocr/jobs \
 
 - `202` incluye la cabecera `Location: /api/ext/ocr/jobs/{id}`.
 - `GET /api/ext/ocr/jobs/{id}` — estado + `result` completo cuando `status = "done"`.
-- `GET /api/ext/ocr/jobs` — listado paginado **sin** `result` (solo metadatos; los del cliente autenticado).
+- `GET /api/ext/ocr/jobs` — listado paginado **sin** `result` (solo metadatos; los del
+  cliente autenticado). Parámetros: `page`, `per_page` (máx. 100), `status`, `doc_type`,
+  `search` (nombre de archivo).
 - `GET /api/ext/ocr/stats` — contadores por estado, antigüedad del pendiente más viejo, latencia media/p95.
 - Si se indicó `callback_url`, el worker hace `POST` firmado con el mismo cuerpo que `GET .../jobs/{id}`.
+- Envía una cabecera `Idempotency-Key` para que un reintento de red no cree un job duplicado
+  (se replica la respuesta original; ver `app/idempotency/`).
+- Un `429` incluye `Retry-After` (segundos). Rate‑limit por defecto `THROTTLE_OCR` (`30/60`).
 
 ### Verificar el webhook (`callback_url`)
 
@@ -186,6 +198,7 @@ en el worker de OCR junto con la de jobs.
 | `OCR_ENGINE` | `paddle` | `paddle` o `fake` |
 | `OCR_LANG` | `es` | idioma por defecto de PaddleOCR |
 | `OCR_USE_GPU` | `false` | usar GPU (requiere `paddlepaddle-gpu`) |
+| `OCR_MODEL_DIR` | `/app/backend/.paddlex` | caché de modelos PaddleOCR/PaddleX |
 | `OCR_PDF_DPI` | `200` | DPI al rasterizar PDFs |
 | `OCR_SYNC_MAX_BYTES` / `OCR_SYNC_MAX_PAGES` | `10000000` / `5` | límites del endpoint síncrono |
 | `OCR_MAX_UPLOAD_BYTES` | `52428800` | límite de subida para jobs |
@@ -251,8 +264,36 @@ Arquitectura OCR:
   pero no hay reenvío automático posterior.
 - **`paddleocr` fijado a 2.x**; 3.x / PP-OCRv5 da mejor precisión (el wrapper de `engine.py`
   aísla el cambio).
-- **Clasificador por reglas**: keywords ES/EN, un único tipo dominante por documento, y
-  depende de que el OCR extraiga texto legible. Para más tipos / idiomas: subir el set de
-  `classifier.py`, o enchufar un backend `ml` (TF-IDF) o `llm` (misma interfaz `classify()`).
-  Paso natural siguiente: **extracción de campos** dirigida por tipo (total/fecha/CIF en
-  facturas, etc.).
+- **`OCR_MAX_CONCURRENCY` es por proceso**: con N réplicas del worker el paralelismo real es
+  N × ese valor. Para un tope global haría falta un semáforo en Redis/BD.
+- **Rate‑limit global**: un único `THROTTLE_OCR` para todos los clientes; no hay cuota ni
+  límite por `api_client`.
+
+## Posibles mejoras (roadmap)
+
+Ordenadas por relación valor/esfuerzo:
+
+1. **Extracción de campos por tipo** — el clasificador ya dice *qué* documento es; el
+   siguiente paso es extraer datos estructurados (total, fecha, CIF/NIF, IBAN, IRPF…).
+   Backend `extractor` enchufable igual que el `classifier` (`OCR_EXTRACTOR=none|rules|llm`).
+2. **Almacenamiento de objetos (S3/MinIO)** para las subidas — desacopla worker del disco
+   compartido y permite escalar el worker horizontalmente de verdad.
+3. **Observabilidad** — logs JSON estructurados + `/metrics` Prometheus (histograma de
+   latencia OCR, profundidad de cola, hit‑rate de caché, errores de motor).
+4. **Dead‑letter de callbacks** — backoff con más reintentos, registro de intentos por job y
+   endpoint para reenviar manualmente.
+5. **Cuotas y medición por cliente** — rate‑limit y cuota mensual de páginas por
+   `api_client` (base para facturación); los datos ya están en `documents`.
+6. **Formatos de salida** — `?format=text|hocr|alto|pdf` (PDF con capa de texto es una
+   petición habitual en APIs de OCR).
+7. **Motor alternativo** — Tesseract como *fallback* ligero, o adaptador a un OCR cloud,
+   detrás de la misma interfaz `OcrEngine`.
+8. **Detección automática de idioma** en una pasada rápida, para no exigir `lang`.
+9. **Redacción de PII** opcional sobre `documents.text_excerpt` (enmascarar email / DNI /
+   IBAN) — relevante porque se procesan nóminas, extractos y documentos de identidad.
+10. **Endpoint batch** — subir un zip o varios archivos y devolver un `batch_id`.
+11. **Rotación de secreto** de `api_client` (hoy solo crear/revocar) y cabeceras
+    `X-RateLimit-*` en las respuestas.
+12. **Clasificador ML/LLM** — `classify()` ya es pluggable; añadir un backend TF‑IDF
+    entrenable o uno LLM, y ampliar keywords/idiomas del set por reglas.
+13. **Migrar a `paddleocr` 3.x / PP‑OCRv5** cuando haya wheels estables para el target.
