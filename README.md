@@ -95,11 +95,14 @@ curl -X POST http://localhost:8087/api/ext/ocr \
 }
 ```
 
+- **Formato de salida** con `?format=` — `json` (por defecto) · `text` · `hocr` · `alto` ·
+  `pdf` (PDF buscable = imagen + capa de texto invisible). `GET /api/ext/ocr/jobs/{id}?format=`
+  admite `text|hocr|alto` (el `pdf` de un job llegará con el storage enchufable).
 - Las líneas salen en **orden de lectura** (filas por `y`, cada fila de izquierda a
   derecha; desactivable con `OCR_SORT_READING_ORDER=false`).
 - Resultados idénticos (mismo contenido + idioma) se sirven de **caché**
   (`cached: true`) durante `OCR_SYNC_CACHE_TTL_SECONDS`.
-- Incluye `classification` con el **tipo de documento** detectado (ver abajo).
+- Incluye `classification` y `extraction` (ver abajo).
 - `lang` inválido → `422`. Límites: `OCR_SYNC_MAX_BYTES` (10 MB),
   `OCR_SYNC_MAX_PAGES` (5), `OCR_MAX_IMAGE_MEGAPIXELS` (40, anti-bomba). Para más, usa los jobs.
 
@@ -315,8 +318,8 @@ Ordenadas por relación valor/esfuerzo:
    endpoint para reenviar manualmente.
 5. **Cuotas y medición por cliente** — rate‑limit y cuota mensual de páginas por
    `api_client` (base para facturación); los datos ya están en `documents`.
-6. **Formatos de salida** — `?format=text|hocr|alto|pdf` (PDF con capa de texto es una
-   petición habitual en APIs de OCR).
+6. *(hecho)* **Formatos de salida** `?format=text|hocr|alto|pdf`; queda el `pdf` de un job
+   (necesita el original → depende del storage enchufable).
 7. *(hecho)* **Motor alternativo Tesseract** (`OCR_ENGINE=tesseract`); queda abrir un
    adaptador a un OCR cloud tras la misma interfaz `OcrEngine`.
 8. *(hecho)* **Detección automática de idioma** (`OCR_LANG_AUTODETECT`).
