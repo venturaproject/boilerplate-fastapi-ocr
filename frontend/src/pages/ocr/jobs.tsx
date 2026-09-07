@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Loader2, RefreshCw, Send } from 'lucide-react'
-import { ocrApi, type OcrJob, type OcrJobStatus } from '@/services/ocr-api'
+import { ocrApi, type OcrJobStatus, type OcrJobSummary } from '@/services/ocr-api'
 
 const STATUS_VARIANT: Record<OcrJobStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   pending: 'outline',
@@ -58,6 +58,12 @@ export default function OcrJobs() {
       query.state.data && ['pending', 'processing'].includes(query.state.data.status) ? 2000 : false,
   })
 
+  const statsQuery = useQuery({
+    queryKey: ['ocr-stats'],
+    queryFn: () => ocrApi.stats(),
+    refetchInterval: 5000,
+  })
+
   const create = useMutation({
     mutationFn: () => ocrApi.createJob(file as File, lang, callbackUrl || undefined),
     onSuccess: (job) => {
@@ -65,10 +71,12 @@ export default function OcrJobs() {
       setCallbackUrl('')
       setSelected(job.id)
       queryClient.invalidateQueries({ queryKey: ['ocr-jobs'] })
+      queryClient.invalidateQueries({ queryKey: ['ocr-stats'] })
     },
   })
 
-  const jobs: OcrJob[] = jobsQuery.data?.data ?? []
+  const jobs: OcrJobSummary[] = jobsQuery.data?.data ?? []
+  const stats = statsQuery.data
 
   return (
     <AuthenticatedLayout title="Trabajos OCR">
@@ -82,6 +90,32 @@ export default function OcrJobs() {
               recibirás el resultado por webhook.
             </p>
           </div>
+
+          {stats && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: 'En cola', value: stats.pending },
+                { label: 'Procesando', value: stats.processing },
+                { label: 'Completados', value: stats.done },
+                { label: 'Errores', value: stats.error },
+              ].map((s) => (
+                <Card key={s.label}>
+                  <CardContent className="p-4">
+                    <div className="text-2xl font-semibold tabular-nums">{s.value}</div>
+                    <div className="text-xs text-muted-foreground">{s.label}</div>
+                  </CardContent>
+                </Card>
+              ))}
+              {stats.processing_ms_avg != null && (
+                <p className="col-span-2 text-xs text-muted-foreground sm:col-span-4">
+                  Latencia media {Math.round(stats.processing_ms_avg)} ms
+                  {stats.processing_ms_p95 != null && ` · p95 ${Math.round(stats.processing_ms_p95)} ms`}
+                  {stats.oldest_pending_age_seconds != null &&
+                    ` · pendiente más antiguo hace ${Math.round(stats.oldest_pending_age_seconds)} s`}
+                </p>
+              )}
+            </div>
+          )}
 
           <Card>
             <CardContent className="pt-6">

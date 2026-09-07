@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import io
+import logging
+import math
 import os
 from dataclasses import dataclass
 
@@ -11,6 +13,15 @@ from PIL import Image, ImageSequence
 
 from app.config import settings
 from app.exceptions import PayloadTooLargeException, UnsupportedMediaException
+
+logger = logging.getLogger("app.services.ocr")
+
+# Cap Pillow's own decompression-bomb guard to our configured budget.
+Image.MAX_IMAGE_PIXELS = int(settings.ocr_max_image_megapixels * 1_000_000)
+
+
+def _max_pixels() -> int:
+    return int(settings.ocr_max_image_megapixels * 1_000_000)
 
 # content-type -> canonical extension
 IMAGE_CONTENT_TYPES: dict[str, str] = {
@@ -85,16 +96,31 @@ def load_pages(
 def _load_image(data: bytes, *, max_pages: int | None) -> list[PageImage]:
     try:
         img = Image.open(io.BytesIO(data))
-        img.load()
     except Exception as exc:
         raise UnsupportedMediaException("No se pudo decodificar la imagen") from exc
 
-    frames = list(ImageSequence.Iterator(img))
-    if max_pages is not None and len(frames) > max_pages:
+    # Header carries the size without decoding pixels — reject bombs before load().
+    if img.width * img.height > _max_pixels():
         raise PayloadTooLargeException(
-            f"La imagen tiene {len(frames)} fotogramas; el máximo permitido es {max_pages}."
+            f"La imagen es de {img.width}x{img.height}px; el máximo es "
+            f"{settings.ocr_max_image_megapixels:g} MP."
         )
-    return [_pil_to_page(i, frame) for i, frame in enumerate(frames, start=1)]
+
+    n_frames = getattr(img, "n_frames", 1)
+    if max_pages is not None and n_frames > max_pages:
+        raise PayloadTooLargeException(
+            f"La imagen tiene {n_frames} fotogramas; el máximo permitido es {max_pages}."
+        )
+
+    try:
+        return [
+            _pil_to_page(i, frame)
+            for i, frame in enumerate(ImageSequence.Iterator(img), start=1)
+        ]
+    except Image.DecompressionBombError as exc:
+        raise PayloadTooLargeException("La imagen supera el límite de píxeles permitido.") from exc
+    except Exception as exc:
+        raise UnsupportedMediaException("No se pudo decodificar la imagen") from exc
 
 
 def _load_pdf(data: bytes, *, max_pages: int | None) -> list[PageImage]:
@@ -109,7 +135,7 @@ def _load_pdf(data: bytes, *, max_pages: int | None) -> list[PageImage]:
         raise UnsupportedMediaException("No se pudo leer el PDF") from exc
 
     zoom = settings.ocr_pdf_dpi / 72.0
-    matrix = fitz.Matrix(zoom, zoom)
+    budget = _max_pixels()
     pages: list[PageImage] = []
     with doc:
         page_count = doc.page_count
@@ -118,7 +144,18 @@ def _load_pdf(data: bytes, *, max_pages: int | None) -> list[PageImage]:
                 f"El PDF tiene {page_count} páginas; el máximo permitido es {max_pages}."
             )
         for i in range(page_count):
-            pix = doc.load_page(i).get_pixmap(matrix=matrix, alpha=False)
+            page = doc.load_page(i)
+            rect = page.rect
+            # Clamp this page's zoom so the rendered bitmap never exceeds the pixel budget.
+            page_zoom = zoom
+            target_px = (rect.width * zoom) * (rect.height * zoom)
+            if target_px > budget and rect.width > 0 and rect.height > 0:
+                page_zoom = math.sqrt(budget / (rect.width * rect.height))
+                logger.warning(
+                    "PDF página %s (%.0fx%.0f pt) reescalada: zoom %.2f -> %.2f",
+                    i + 1, rect.width, rect.height, zoom, page_zoom,
+                )
+            pix = page.get_pixmap(matrix=fitz.Matrix(page_zoom, page_zoom), alpha=False)
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
             pages.append(_pil_to_page(i + 1, img))
     return pages

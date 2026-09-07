@@ -38,3 +38,8 @@ class UnsupportedMediaException(AppException):
 class PayloadTooLargeException(AppException):
     def __init__(self, detail: str = "El archivo excede el tamaño máximo permitido"):
         super().__init__(status_code=413, detail=detail)
+
+
+class OcrEngineException(AppException):
+    def __init__(self, detail: str = "El motor de OCR no pudo procesar el documento"):
+        super().__init__(status_code=502, detail=detail)

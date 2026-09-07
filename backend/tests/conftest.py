@@ -60,20 +60,24 @@ async def _clean() -> AsyncIterator[None]:
 def _fake_ocr_engine(tmp_path) -> Iterator[None]:
     """Never load the real PaddleOCR model, and keep uploads out of the real media dir."""
     from app.config import settings
+    from app.services.ocr import cache as ocr_cache
     from app.services.ocr import engine as ocr_engine
 
-    prev_engine = settings.ocr_engine
-    prev_media = settings.media_dir
-    prev_allow_private = settings.ocr_callback_allow_private
+    prev = {
+        "ocr_engine": settings.ocr_engine,
+        "media_dir": settings.media_dir,
+        "ocr_callback_allow_private": settings.ocr_callback_allow_private,
+    }
     settings.ocr_engine = "fake"
     settings.media_dir = str(tmp_path / "media")
     settings.ocr_callback_allow_private = True  # tests post to non-resolvable hosts
     ocr_engine.get_engine.cache_clear()
+    ocr_cache.clear()
     yield
-    settings.ocr_engine = prev_engine
-    settings.media_dir = prev_media
-    settings.ocr_callback_allow_private = prev_allow_private
+    for k, v in prev.items():
+        setattr(settings, k, v)
     ocr_engine.get_engine.cache_clear()
+    ocr_cache.clear()
 
 
 @pytest.fixture

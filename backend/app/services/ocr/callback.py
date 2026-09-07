@@ -15,14 +15,18 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import logging
 import socket
 import time
 from urllib.parse import urlparse
 
+import anyio.to_thread
 import httpx
 
 from app.config import settings
 from app.exceptions import ValidationException
+
+logger = logging.getLogger("app.ocr.worker")
 
 _BLOCKED_HOSTNAMES = {"localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"}
 
@@ -115,10 +119,12 @@ async def deliver(url: str, payload: dict) -> str:
 
     allowed = settings.ocr_callback_allowed_hosts_list
     if allowed and not _host_allowed(host, allowed):
+        logger.warning("callback a %s bloqueado: host fuera de la lista permitida", host)
         return "blocked:host_not_allowed"
     try:
-        _resolve_and_check(host)
+        await anyio.to_thread.run_sync(_resolve_and_check, host)  # DNS lookup off the loop
     except CallbackBlocked as exc:
+        logger.warning("callback a %s bloqueado: %s", host, exc)
         return f"blocked:{exc}"[:64]
 
     body = json.dumps(payload, separators=(",", ":"), default=str).encode()
@@ -142,4 +148,5 @@ async def deliver(url: str, payload: dict) -> str:
                     return status
             except httpx.HTTPError as exc:
                 status = f"error:{type(exc).__name__}"
+    logger.warning("callback a %s no confirmado: %s", host or url, status)
     return status

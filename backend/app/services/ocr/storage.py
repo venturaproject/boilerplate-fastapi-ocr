@@ -19,6 +19,9 @@ def _safe_name(filename: str | None) -> str:
     name = os.path.basename(filename or "").strip()
     if not name or name in (".", ".."):
         return "upload"
+    if len(name) > 200:  # keep well under filesystem NAME_MAX
+        root, ext = os.path.splitext(name)
+        name = root[: 200 - len(ext)] + ext
     return name
 
 

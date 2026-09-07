@@ -144,3 +144,92 @@ async def test_purge_keeps_unfinished_jobs(monkeypatch):
         row.created_at = datetime.now(tz=UTC) - timedelta(days=30)
     assert await purge_once() == 0
     assert await _get(job.id) is not None
+
+
+# ── Listing payload / stats / readiness ──────────────────────────────────────
+
+
+async def test_list_excludes_result_detail_includes_it(client, ocr_token):
+    r = await client.post(
+        JOBS, files={"file": ("d.png", _png(), "image/png")}, headers=_auth(ocr_token)
+    )
+    job_id = r.json()["id"]
+    await drain_once()
+
+    lst = await client.get(JOBS, headers=_auth(ocr_token))
+    assert lst.status_code == 200
+    row = lst.json()["data"][0]
+    assert "result" not in row
+    assert row["processing_ms"] is not None
+
+    detail = await client.get(f"{JOBS}/{job_id}", headers=_auth(ocr_token))
+    assert detail.json()["result"]["page_count"] == 1
+
+
+async def test_stats_endpoint(client, ocr_token):
+    await client.post(JOBS, files={"file": ("d.png", _png(), "image/png")}, headers=_auth(ocr_token))
+    await drain_once()
+    r = await client.get("/api/ext/ocr/stats", headers=_auth(ocr_token))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["done"] == 1
+    assert body["processing_ms_avg"] is not None
+
+
+async def test_ready_endpoint(client):
+    r = await client.get("/api/v1/ocr/ready")
+    assert r.status_code == 200  # fake engine is always ready
+    assert r.json()["ready"] is True
+
+
+async def test_create_job_sets_location_header(client, ocr_token):
+    r = await client.post(
+        JOBS, files={"file": ("d.png", _png(), "image/png")}, headers=_auth(ocr_token)
+    )
+    assert r.status_code == 202
+    assert r.headers["location"] == f"/api/ext/ocr/jobs/{r.json()['id']}"
+
+
+# ── Loader guards ────────────────────────────────────────────────────────────
+
+
+def test_pdf_page_zoom_is_clamped(monkeypatch):
+    import pymupdf
+
+    from app.services.ocr.loader import load_pages
+
+    monkeypatch.setattr(settings, "ocr_max_image_megapixels", 1.0)
+    monkeypatch.setattr(settings, "ocr_pdf_dpi", 600)  # would blow past 1 MP without clamping
+
+    doc = pymupdf.open()
+    doc.new_page(width=1000, height=1000)  # 1000pt @ 600dpi = huge
+    pages = load_pages(doc.tobytes(), "application/pdf", max_pages=None)
+
+    assert len(pages) == 1
+    assert pages[0].width * pages[0].height <= 1_000_000 * 1.05
+
+
+async def test_content_length_guard_rejects_large_header():
+    from app.exceptions import PayloadTooLargeException
+    from app.services.ocr.jobs import content_length_guard
+
+    dep = content_length_guard(1000)
+
+    class _Req:
+        headers = {"content-length": "10000000"}
+
+    with pytest.raises(PayloadTooLargeException):
+        await dep(_Req())
+
+
+def test_sort_reading_order_groups_rows():
+    from app.schemas.ocr import OcrLine
+    from app.services.ocr.engine import _sort_reading_order
+
+    def line(text, x, y):
+        return OcrLine(text=text, confidence=0.9, box=[[x, y], [x + 50, y], [x + 50, y + 12], [x, y + 12]])
+
+    # given out of order: bottom-right, top-right, top-left, bottom-left
+    scrambled = [line("D", 200, 100), line("B", 200, 10), line("A", 10, 12), line("C", 10, 98)]
+    ordered = [ln.text for ln in _sort_reading_order(scrambled)]
+    assert ordered == ["A", "B", "C", "D"]

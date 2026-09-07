@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     ocr_worker_interval_seconds: float = 2.0
     ocr_model_dir: str = "/app/backend/.paddlex"
 
+    # Input hardening
+    ocr_max_image_megapixels: float = 40.0  # per rendered page / image frame
+    ocr_allowed_langs: str = ""  # comma list; empty -> built-in PaddleOCR language set
+    ocr_sort_reading_order: bool = True
+
+    # Sync-endpoint result cache (content-hash keyed, in-process)
+    ocr_sync_cache_ttl_seconds: int = 300  # 0 disables
+    ocr_sync_cache_max_entries: int = 64
+
     # Job queue resilience
     ocr_job_max_attempts: int = 3
     ocr_job_stale_seconds: int = 900  # a "processing" job older than this is reclaimed
@@ -96,6 +105,10 @@ class Settings(BaseSettings):
     def ocr_warmup_langs_list(self) -> list[str]:
         langs = [x.strip() for x in self.ocr_warmup_langs.split(",") if x.strip()]
         return langs or [self.ocr_lang]
+
+    @property
+    def ocr_allowed_langs_list(self) -> list[str]:
+        return [x.strip() for x in self.ocr_allowed_langs.split(",") if x.strip()]
 
     @property
     def ocr_callback_secret(self) -> str:

@@ -22,7 +22,7 @@ class OcrPage(BaseModel):
     width: int
     height: int
     lines: list[OcrLine]
-    text: str = Field(description="Page lines joined by newline")
+    text: str = Field(description="Page lines joined by newline, in reading order")
 
 
 class OcrResult(BaseModel):
@@ -32,9 +32,12 @@ class OcrResult(BaseModel):
     pages: list[OcrPage]
     text: str = Field(description="Full document text")
     processing_ms: int
+    cached: bool = False
 
 
-class OcrJobOut(BaseModel):
+class OcrJobSummary(BaseModel):
+    """Job metadata without the (potentially large) OCR result — used in listings."""
+
     id: uuid.UUID
     status: OcrJobStatus
     original_filename: str | None = None
@@ -42,10 +45,10 @@ class OcrJobOut(BaseModel):
     size_bytes: int
     lang: str
     page_count: int | None = None
+    processing_ms: int | None = None
     callback_url: str | None = None
     callback_status: str | None = None
     error: str | None = None
-    result: OcrResult | None = None
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
@@ -53,8 +56,22 @@ class OcrJobOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OcrJobOut(OcrJobSummary):
+    result: OcrResult | None = None
+
+
 class OcrJobListResponse(BaseModel):
-    data: list[OcrJobOut]
+    data: list[OcrJobSummary]
     total: int
     page: int
     per_page: int
+
+
+class OcrStats(BaseModel):
+    pending: int = 0
+    processing: int = 0
+    done: int = 0
+    error: int = 0
+    oldest_pending_age_seconds: float | None = None
+    processing_ms_avg: float | None = None
+    processing_ms_p95: float | None = None

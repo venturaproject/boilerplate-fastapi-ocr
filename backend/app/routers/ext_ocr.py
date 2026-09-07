@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Form, UploadFile
+from fastapi import APIRouter, Depends, Form, Response, UploadFile
 from fastapi import File as FileParam
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,16 +10,24 @@ from app.dependencies import ExtClientContext, require_scope
 from app.exceptions import NotFoundException
 from app.ratelimit import rate_limit
 from app.repositories import ocr_job as ocr_repo
-from app.schemas.ocr import OcrJobListResponse, OcrJobOut, OcrResult
-from app.services.ocr.jobs import create_ocr_job, run_sync_ocr
+from app.schemas.ocr import (
+    OcrJobListResponse,
+    OcrJobOut,
+    OcrJobSummary,
+    OcrResult,
+    OcrStats,
+)
+from app.services.ocr.jobs import content_length_guard, create_ocr_job, run_sync_ocr
 
 router = APIRouter(prefix="/api/ext/ocr", tags=["external-ocr"])
 
 _ocr_limit, _ocr_per = settings.throttle(settings.throttle_ocr)
 _ocr_rl = Depends(rate_limit("ext_ocr", _ocr_limit, _ocr_per))
+_sync_size_guard = Depends(content_length_guard(settings.ocr_sync_max_bytes))
+_job_size_guard = Depends(content_length_guard(settings.ocr_max_upload_bytes))
 
 
-@router.post("", dependencies=[_ocr_rl])
+@router.post("", dependencies=[_ocr_rl, _sync_size_guard])
 async def ext_ocr_sync(
     file: UploadFile = FileParam(...),
     lang: str | None = Form(default=None),
@@ -29,8 +37,9 @@ async def ext_ocr_sync(
     return await run_sync_ocr(file, lang)
 
 
-@router.post("/jobs", status_code=202, dependencies=[_ocr_rl])
+@router.post("/jobs", status_code=202, dependencies=[_ocr_rl, _job_size_guard])
 async def ext_ocr_create_job(
+    response: Response,
     file: UploadFile = FileParam(...),
     lang: str | None = Form(default=None),
     callback_url: str | None = Form(default=None),
@@ -45,6 +54,7 @@ async def ext_ocr_create_job(
         callback_url=callback_url,
         api_client_id=ctx.client.id,
     )
+    response.headers["Location"] = f"{router.prefix}/jobs/{job.id}"
     return OcrJobOut.model_validate(job)
 
 
@@ -61,11 +71,19 @@ async def ext_ocr_list_jobs(
         db, api_client_id=ctx.client.id, page=page, per_page=per_page
     )
     return OcrJobListResponse(
-        data=[OcrJobOut.model_validate(j) for j in items],
+        data=[OcrJobSummary.model_validate(j) for j in items],
         total=total,
         page=page,
         per_page=per_page,
     )
+
+
+@router.get("/stats", dependencies=[_ocr_rl])
+async def ext_ocr_stats(
+    ctx: ExtClientContext = require_scope("ocr:read"),
+    db: AsyncSession = Depends(get_db),
+) -> OcrStats:
+    return await ocr_repo.stats(db, api_client_id=ctx.client.id)
 
 
 @router.get("/jobs/{job_id}", dependencies=[_ocr_rl])

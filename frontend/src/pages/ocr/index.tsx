@@ -129,6 +129,7 @@ export default function OcrPlayground() {
                     Motor <Badge variant="outline">{result.engine}</Badge>{' '}
                     · idioma <Badge variant="outline">{result.lang}</Badge>{' '}
                     · {result.page_count} página(s) · {result.processing_ms} ms
+                    {result.cached && <> · <Badge variant="secondary">desde caché</Badge></>}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

@@ -3,8 +3,10 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.models.ocr_job import OcrJob
+from app.schemas.ocr import OcrStats
 
 
 async def create_job(
@@ -68,12 +70,63 @@ async def list_jobs(
 
     result = await db.execute(
         select(OcrJob)
+        .options(defer(OcrJob.result))  # never pull the big JSON blob for listings
         .where(*filters)
         .order_by(OcrJob.created_at.desc())
         .limit(per_page)
         .offset((page - 1) * per_page)
     )
     return list(result.scalars().all()), int(total)
+
+
+async def stats(db: AsyncSession, *, api_client_id: uuid.UUID | None = None) -> OcrStats:
+    base_filters = []
+    if api_client_id is not None:
+        base_filters.append(OcrJob.api_client_id == api_client_id)
+
+    counts: dict[str, int] = {
+        status: int(n)
+        for status, n in (
+            await db.execute(
+                select(OcrJob.status, func.count())
+                .where(*base_filters)
+                .group_by(OcrJob.status)
+            )
+        ).all()
+    }
+
+    oldest_pending = (
+        await db.execute(
+            select(func.min(OcrJob.created_at)).where(
+                *base_filters, OcrJob.status == OcrJob.STATUS_PENDING
+            )
+        )
+    ).scalar_one_or_none()
+    oldest_age = (
+        (datetime.now(tz=UTC) - oldest_pending).total_seconds() if oldest_pending else None
+    )
+
+    done_filter = [*base_filters, OcrJob.status == OcrJob.STATUS_DONE, OcrJob.processing_ms.isnot(None)]
+    avg_ms = (
+        await db.execute(select(func.avg(OcrJob.processing_ms)).where(*done_filter))
+    ).scalar_one_or_none()
+    p95_ms = (
+        await db.execute(
+            select(func.percentile_cont(0.95).within_group(OcrJob.processing_ms.asc())).where(
+                *done_filter
+            )
+        )
+    ).scalar_one_or_none()
+
+    return OcrStats(
+        pending=counts.get(OcrJob.STATUS_PENDING, 0),
+        processing=counts.get(OcrJob.STATUS_PROCESSING, 0),
+        done=counts.get(OcrJob.STATUS_DONE, 0),
+        error=counts.get(OcrJob.STATUS_ERROR, 0),
+        oldest_pending_age_seconds=round(oldest_age, 1) if oldest_age is not None else None,
+        processing_ms_avg=round(float(avg_ms), 1) if avg_ms is not None else None,
+        processing_ms_p95=round(float(p95_ms), 1) if p95_ms is not None else None,
+    )
 
 
 async def claim_pending_jobs(db: AsyncSession, limit: int) -> list[OcrJob]:
@@ -95,10 +148,18 @@ async def claim_pending_jobs(db: AsyncSession, limit: int) -> list[OcrJob]:
     return jobs
 
 
-async def mark_done(db: AsyncSession, job: OcrJob, *, result: dict, page_count: int) -> None:
+async def mark_done(
+    db: AsyncSession,
+    job: OcrJob,
+    *,
+    result: dict,
+    page_count: int,
+    processing_ms: int | None = None,
+) -> None:
     job.status = OcrJob.STATUS_DONE
     job.result = result
     job.page_count = page_count
+    job.processing_ms = processing_ms
     job.error = None
     job.finished_at = datetime.now(tz=UTC)
     await db.flush()

@@ -78,5 +78,6 @@ export const endpoints = {
     scan:      `${API_BASE}/ocr/scan`,
     jobs:      `${API_BASE}/ocr/jobs`,
     jobDetail: (id: string) => `${API_BASE}/ocr/jobs/${id}`,
+    stats:     `${API_BASE}/ocr/stats`,
   },
 }

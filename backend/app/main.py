@@ -110,4 +110,14 @@ app.include_router(ext_ocr.router)
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "app": settings.app_name}
+    from app.services.ocr.engine import is_ready, warmed_langs
+
+    return {
+        "status": "ok",
+        "app": settings.app_name,
+        "ocr": {
+            "engine": settings.ocr_engine,
+            "ready": is_ready(),
+            "warmed_langs": warmed_langs(),
+        },
+    }

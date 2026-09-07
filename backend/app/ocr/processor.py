@@ -13,9 +13,10 @@ from app.database import AsyncSessionLocal
 from app.models.ocr_job import OcrJob
 from app.repositories import ocr_job as ocr_repo
 from app.schemas.ocr import OcrJobOut
-from app.services.ocr import run_ocr
+from app.services.ocr import run_ocr_file
 from app.services.ocr.callback import deliver as deliver_callback
-from app.services.ocr.storage import delete_job_files, read_file
+from app.services.ocr.langs import resolve_lang
+from app.services.ocr.storage import delete_job_files
 
 logger = logging.getLogger("app.ocr.worker")
 
@@ -43,11 +44,12 @@ async def _process_one(job_id: uuid.UUID) -> None:
         storage_path = job.storage_path
         content_type = job.content_type
         filename = job.original_filename
-        lang = job.lang
+        lang = resolve_lang(job.lang)
 
     try:
-        data = read_file(storage_path)
-        result = await run_ocr(data, content_type, lang, filename=filename, max_pages=None)
+        result = await run_ocr_file(
+            storage_path, content_type, lang, filename=filename, max_pages=None
+        )
     except Exception as exc:
         logger.exception("OCR job %s falló", job_id)
         async with AsyncSessionLocal() as db, db.begin():
@@ -72,6 +74,7 @@ async def _process_one(job_id: uuid.UUID) -> None:
                 job,
                 result=result.model_dump(mode="json"),
                 page_count=result.page_count,
+                processing_ms=result.processing_ms,
             )
     await _fire_callback(job_id)
 

@@ -22,11 +22,13 @@ export interface OcrResult {
   pages: OcrPage[]
   text: string
   processing_ms: number
+  cached: boolean
 }
 
 export type OcrJobStatus = 'pending' | 'processing' | 'done' | 'error'
 
-export interface OcrJob {
+/** Job metadata as returned by the list endpoint (no `result`). */
+export interface OcrJobSummary {
   id: string
   status: OcrJobStatus
   original_filename: string | null
@@ -34,20 +36,35 @@ export interface OcrJob {
   size_bytes: number
   lang: string
   page_count: number | null
+  processing_ms: number | null
   callback_url: string | null
   callback_status: string | null
   error: string | null
-  result: OcrResult | null
   created_at: string
   started_at: string | null
   finished_at: string | null
 }
 
+/** Full job as returned by the detail endpoint. */
+export interface OcrJob extends OcrJobSummary {
+  result: OcrResult | null
+}
+
 export interface OcrJobList {
-  data: OcrJob[]
+  data: OcrJobSummary[]
   total: number
   page: number
   per_page: number
+}
+
+export interface OcrStats {
+  pending: number
+  processing: number
+  done: number
+  error: number
+  oldest_pending_age_seconds: number | null
+  processing_ms_avg: number | null
+  processing_ms_p95: number | null
 }
 
 function buildForm(file: File, lang?: string, callbackUrl?: string): FormData {
@@ -82,6 +99,11 @@ export const ocrApi = {
 
   async getJob(id: string): Promise<OcrJob> {
     const { data } = await axios.get(endpoints.ocr.jobDetail(id))
+    return data
+  },
+
+  async stats(): Promise<OcrStats> {
+    const { data } = await axios.get(endpoints.ocr.stats)
     return data
   },
 }

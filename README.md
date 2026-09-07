@@ -64,11 +64,17 @@ curl -X POST http://localhost:8087/api/ext/ocr \
     }
   ],
   "text": "FACTURA\n…",
-  "processing_ms": 842
+  "processing_ms": 842,
+  "cached": false
 }
 ```
 
-Límites: `OCR_SYNC_MAX_BYTES` (10 MB), `OCR_SYNC_MAX_PAGES` (5). Para más, usa los jobs.
+- Las líneas salen en **orden de lectura** (filas por `y`, cada fila de izquierda a
+  derecha; desactivable con `OCR_SORT_READING_ORDER=false`).
+- Resultados idénticos (mismo contenido + idioma) se sirven de **caché**
+  (`cached: true`) durante `OCR_SYNC_CACHE_TTL_SECONDS`.
+- `lang` inválido → `422`. Límites: `OCR_SYNC_MAX_BYTES` (10 MB),
+  `OCR_SYNC_MAX_PAGES` (5), `OCR_MAX_IMAGE_MEGAPIXELS` (40, anti-bomba). Para más, usa los jobs.
 
 ### Asíncrono — `POST /api/ext/ocr/jobs`  *(scope `ocr:write`)*
 
@@ -81,9 +87,11 @@ curl -X POST http://localhost:8087/api/ext/ocr/jobs \
 # → 202  { "id": "…", "status": "pending", … }
 ```
 
-- `GET /api/ext/ocr/jobs/{id}` — estado + `result` cuando `status = "done"`.
-- `GET /api/ext/ocr/jobs` — listado paginado (solo los del cliente autenticado).
-- Si se indicó `callback_url`, el worker hace `POST` con el mismo cuerpo que `GET .../jobs/{id}`.
+- `202` incluye la cabecera `Location: /api/ext/ocr/jobs/{id}`.
+- `GET /api/ext/ocr/jobs/{id}` — estado + `result` completo cuando `status = "done"`.
+- `GET /api/ext/ocr/jobs` — listado paginado **sin** `result` (solo metadatos; los del cliente autenticado).
+- `GET /api/ext/ocr/stats` — contadores por estado, antigüedad del pendiente más viejo, latencia media/p95.
+- Si se indicó `callback_url`, el worker hace `POST` firmado con el mismo cuerpo que `GET .../jobs/{id}`.
 
 ### Verificar el webhook (`callback_url`)
 
@@ -116,7 +124,11 @@ está fijado, hosts fuera de la lista). Los redirects no se siguen.
 | `OCR_PDF_DPI` | `200` | DPI al rasterizar PDFs |
 | `OCR_SYNC_MAX_BYTES` / `OCR_SYNC_MAX_PAGES` | `10000000` / `5` | límites del endpoint síncrono |
 | `OCR_MAX_UPLOAD_BYTES` | `52428800` | límite de subida para jobs |
-| `OCR_MAX_CONCURRENCY` | `2` | inferencias OCR simultáneas |
+| `OCR_MAX_IMAGE_MEGAPIXELS` | `40` | tope de píxeles por página/imagen (anti-bomba) |
+| `OCR_MAX_CONCURRENCY` | `2` | inferencias OCR simultáneas (por proceso) |
+| `OCR_ALLOWED_LANGS` | *(vacío)* | idiomas permitidos; vacío = set nativo de PaddleOCR |
+| `OCR_SORT_READING_ORDER` | `true` | ordenar líneas por orden de lectura |
+| `OCR_SYNC_CACHE_TTL_SECONDS` / `OCR_SYNC_CACHE_MAX_ENTRIES` | `300` / `64` | caché del endpoint síncrono (0 = off) |
 | `OCR_WORKER_INTERVAL_SECONDS` | `2` | frecuencia de sondeo del worker |
 | `OCR_JOB_MAX_ATTEMPTS` | `3` | reintentos antes de marcar el job como `error` |
 | `OCR_JOB_STALE_SECONDS` | `900` | antigüedad para reencolar un job `processing` colgado |
@@ -149,3 +161,21 @@ Arquitectura OCR:
 - `app/routers/ext_ocr.py` (API externa) y `app/routers/ocr.py` (panel).
 - `app/ocr/worker.py` + `app/ocr/processor.py` — worker de la cola (servicio `ocr-worker`):
   reclaim de jobs colgados → claim → OCR → callback → purga por retención.
+- `app/services/ocr/langs.py` (validación de idioma), `cache.py` (caché síncrona).
+
+### Readiness
+
+- `GET /api/v1/ocr/ready` → `200` cuando hay al menos un modelo cargado, `503` mientras calienta
+  (útil como *readiness probe*). `GET /api/health` incluye el mismo estado en `ocr.ready`.
+
+## Limitaciones conocidas
+
+- **DNS rebinding**: el guarda SSRF de callbacks resuelve el host y luego httpx vuelve a
+  resolver al conectar. Cierre completo = transport de httpx con IP fijada. Mitígalo con
+  política de egress de red en entornos hostiles.
+- **Storage en disco local**: backend y worker comparten un volumen (`media_data`). Para
+  multi-nodo hace falta almacenamiento de objetos (S3).
+- **Callbacks sin dead-letter**: 2 reintentos inmediatos; si fallan, queda `callback_status`
+  pero no hay reenvío automático posterior.
+- **`paddleocr` fijado a 2.x**; 3.x / PP-OCRv5 da mejor precisión (el wrapper de `engine.py`
+  aísla el cambio).

@@ -20,6 +20,8 @@ from app.services.ocr.loader import PageImage
 
 logger = logging.getLogger("app.services.ocr")
 
+_warmed_langs: set[str] = set()
+
 
 class OcrEngine(Protocol):
     name: str
@@ -29,6 +31,42 @@ class OcrEngine(Protocol):
 
 def _page_text(lines: list[OcrLine]) -> str:
     return "\n".join(line.text for line in lines)
+
+
+def _y_top(line: OcrLine) -> float:
+    return min(p[1] for p in line.box)
+
+
+def _x_left(line: OcrLine) -> float:
+    return min(p[0] for p in line.box)
+
+
+def _sort_reading_order(lines: list[OcrLine]) -> list[OcrLine]:
+    """Group detected lines into rows (y within a tolerance), each row left-to-right."""
+    if len(lines) < 2 or not settings.ocr_sort_reading_order:
+        return lines
+    heights = sorted(max(p[1] for p in ln.box) - _y_top(ln) for ln in lines)
+    tol = max(4.0, heights[len(heights) // 2] * 0.6)
+    rows: list[tuple[float, list[OcrLine]]] = []
+    for ln in sorted(lines, key=_y_top):
+        top = _y_top(ln)
+        if rows and top - rows[-1][0] <= tol:
+            rows[-1][1].append(ln)
+        else:
+            rows.append((top, [ln]))
+    ordered: list[OcrLine] = []
+    for _, row in rows:
+        ordered.extend(sorted(row, key=_x_left))
+    return ordered
+
+
+def is_ready() -> bool:
+    """True once at least one model is loaded (or the engine needs no loading)."""
+    return settings.ocr_engine == "fake" or bool(_warmed_langs)
+
+
+def warmed_langs() -> list[str]:
+    return sorted(_warmed_langs)
 
 
 # ── PaddleOCR ────────────────────────────────────────────────────────────────
@@ -59,12 +97,13 @@ class PaddleOcrEngine:
 
     def recognize_pages(self, pages: list[PageImage], lang: str) -> list[OcrPage]:
         model = self._get_model(lang)
+        _warmed_langs.add(lang)
         results: list[OcrPage] = []
         for page in pages:
             # PaddleOCR models are not thread-safe: serialise inference.
             with self._lock:
                 raw = model.ocr(page.array, cls=True)  # type: ignore[attr-defined]
-            lines = _parse_paddle_page(raw)
+            lines = _sort_reading_order(_parse_paddle_page(raw))
             results.append(
                 OcrPage(
                     page=page.index,
