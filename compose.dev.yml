@@ -42,6 +42,7 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
       APP_NAME: ${APP_NAME:-Ocrer API}
       APP_URL: ${APP_URL:-http://localhost}
+      DOCS_ENABLED: ${DOCS_ENABLED:-true}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-password}
       ADMIN_NAME: ${ADMIN_NAME:-Admin}

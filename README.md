@@ -32,7 +32,9 @@ make migrate && make seed     # crea tablas, permisos y un API client de ejemplo
 - API + docs (OpenAPI 3.1 autogenerado): Swagger UI `http://localhost:8087/api/docs` ·
   ReDoc `/api/redoc` · spec `/api/openapi.json`. El spec declara los dos esquemas de
   auth (`ExternalBearer` para `/api/ext/*`, `SessionCookie` para el panel), así que el
-  botón **Authorize** de Swagger funciona.
+  botón **Authorize** de Swagger funciona. **`DOCS_ENABLED=false`** desactiva las tres
+  rutas (Swagger, ReDoc y `openapi.json` → `404`); en `compose.yml` (producción) el
+  valor por defecto ya es `false`.
 - Panel: `http://localhost:8087/admin` → menú **OCR** (playground · Trabajos · Documentos).
   El dashboard muestra métricas de OCR (por tipo de documento, por modo, latencia, actividad).
 - `make seed` imprime el `client_id` / `client_secret` del cliente `ocr-demo`.
