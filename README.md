@@ -35,7 +35,7 @@ boilerplate-fastapi-ocr/
 **Requisitos**: Docker + Docker Compose. Nada más — Python, Node y pnpm viven en los contenedores.
 
 ```bash
-git clone https://github.com/TU_USUARIO/boilerplate-fastapi-ocr.git
+git clone https://github.com/venturaproject/boilerplate-fastapi-ocr.git
 cd boilerplate-fastapi-ocr
 
 cp .env.example .env          # ajusta SECRET_KEY (≥32 chars), credenciales, puertos…
