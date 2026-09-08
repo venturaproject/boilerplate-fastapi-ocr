@@ -29,7 +29,10 @@ make up                       # postgres · backend · ocr-worker · frontend ·
 make migrate && make seed     # crea tablas, permisos y un API client de ejemplo ("ocr-demo")
 ```
 
-- API + docs: `http://localhost:8087/api/docs`
+- API + docs (OpenAPI 3.1 autogenerado): Swagger UI `http://localhost:8087/api/docs` ·
+  ReDoc `/api/redoc` · spec `/api/openapi.json`. El spec declara los dos esquemas de
+  auth (`ExternalBearer` para `/api/ext/*`, `SessionCookie` para el panel), así que el
+  botón **Authorize** de Swagger funciona.
 - Panel: `http://localhost:8087/admin` → menú **OCR** (playground · Trabajos · Documentos).
   El dashboard muestra métricas de OCR (por tipo de documento, por modo, latencia, actividad).
 - `make seed` imprime el `client_id` / `client_secret` del cliente `ocr-demo`.
