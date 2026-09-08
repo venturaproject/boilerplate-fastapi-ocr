@@ -28,6 +28,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Clock, FileText, Layers, Loader2, RefreshCw, Timer, Trash2, X } from 'lucide-react'
 import { useI18n } from '@/i18n/context'
 import { useTableFilters } from '@/hooks/use-table-filters'
@@ -307,21 +314,31 @@ export default function DocumentsPage() {
             />
           </Card>
 
-          {selected && detail && (
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      {detail.original_filename ?? detail.id.slice(0, 8)}
+        </div>
+      </Main>
+
+      <Sheet open={!!selected} onOpenChange={(v) => !v && setSelected(null)}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
+          {detailQuery.isLoading && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+            </p>
+          )}
+          {detail && (
+            <>
+              <SheetHeader>
+                <div className="flex flex-col gap-2 pr-8 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <SheetTitle className="flex items-center gap-2">
+                      <span className="truncate">{detail.original_filename ?? detail.id.slice(0, 8)}</span>
                       <Badge variant={STATUS_VARIANT[detail.status]}>{detail.status}</Badge>
-                    </CardTitle>
-                    <CardDescription>
+                    </SheetTitle>
+                    <SheetDescription>
                       {MODE_LABEL[detail.mode]} · {formatBytes(detail.size_bytes)}
                       {detail.processing_ms != null && ` · ${detail.processing_ms} ms`}
                       {detail.char_count != null && ` · ${detail.char_count} caracteres`}
                       {detail.ocr_job_id && ` · job ${detail.ocr_job_id.slice(0, 8)}`}
-                    </CardDescription>
+                    </SheetDescription>
                   </div>
                   {canDelete && (
                     <AlertDialog>
@@ -352,30 +369,30 @@ export default function DocumentsPage() {
                     </AlertDialog>
                   )}
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              </SheetHeader>
+              <div className="mt-6 space-y-4">
                 {detail.status === 'error' && detail.error && (
                   <p className="text-sm text-red-600">{detail.error}</p>
                 )}
                 <ExtractionFields extraction={detail.extraction} />
                 {detail.text_excerpt ? (
-                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-4 text-sm">
+                  <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-4 text-sm">
                     {detail.text_excerpt}
                   </pre>
                 ) : (
                   detail.status !== 'error' && (
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-sm text-muted-foreground">
                       {detail.status === 'pending'
                         ? 'En cola…'
                         : 'Sin extracto de texto guardado.'}
                     </p>
                   )
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </>
           )}
-        </div>
-      </Main>
+        </SheetContent>
+      </Sheet>
     </AuthenticatedLayout>
   )
 }

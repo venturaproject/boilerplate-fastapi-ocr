@@ -17,6 +17,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { CheckCircle2, Clock, Layers, Loader2, RefreshCw, Send, X, XCircle } from 'lucide-react'
 import { useI18n } from '@/i18n/context'
 import { useTableFilters } from '@/hooks/use-table-filters'
@@ -366,26 +373,36 @@ export default function OcrJobs() {
             />
           </Card>
 
-          {selected && detailQuery.data && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
+        </div>
+      </Main>
+
+      <Sheet open={!!selected} onOpenChange={(v) => !v && setSelected(null)}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
+          {detailQuery.isLoading && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+            </p>
+          )}
+          {detailQuery.data && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
                   Trabajo {detailQuery.data.id.slice(0, 8)}
                   <Badge variant={STATUS_VARIANT[detailQuery.data.status]}>
                     {detailQuery.data.status}
                   </Badge>
-                </CardTitle>
+                </SheetTitle>
                 {detailQuery.data.callback_url && (
-                  <CardDescription>
+                  <SheetDescription>
                     webhook: {detailQuery.data.callback_status ?? 'pendiente'}
                     {detailQuery.data.callback_attempts > 0 &&
                       ` · ${detailQuery.data.callback_attempts} intento(s)`}
                     {detailQuery.data.next_callback_at &&
                       ` · reintento ${new Date(detailQuery.data.next_callback_at).toLocaleString()}`}
-                  </CardDescription>
+                  </SheetDescription>
                 )}
-              </CardHeader>
-              <CardContent className="space-y-4">
+              </SheetHeader>
+              <div className="mt-6 space-y-4">
                 {detailQuery.data.status === 'error' && (
                   <p className="text-sm text-red-600">{detailQuery.data.error}</p>
                 )}
@@ -416,20 +433,20 @@ export default function OcrJobs() {
                   />
                 )}
                 {detailQuery.data.result && (
-                  <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-muted p-4 text-sm">
+                  <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-4 text-sm">
                     {detailQuery.data.result.text || '(sin texto detectado)'}
                   </pre>
                 )}
                 {['pending', 'processing'].includes(detailQuery.data.status) && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <p className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" /> En cola…
                   </p>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </>
           )}
-        </div>
-      </Main>
+        </SheetContent>
+      </Sheet>
     </AuthenticatedLayout>
   )
 }
