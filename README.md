@@ -25,9 +25,25 @@ repo raíz versiona solo la capa de infraestructura: `infrastructure/`, `compose
 ```bash
 cp .env.example .env          # ajusta SECRET_KEY, credenciales, puertos…
 make build
-make up                       # postgres · backend · ocr-worker · frontend · nginx (dev añade `worker` de eventos)
+make up                       # postgres · backend · ocr-worker · frontend (Vite) · nginx · worker de eventos
 make migrate && make seed     # crea tablas, permisos y un API client de ejemplo ("ocr-demo")
 ```
+
+El `Makefile` y `make` usan **`compose.dev.yml`** (hot-reload, Vite dev server).
+
+### Producción — `compose.yml`
+
+```bash
+docker compose -f compose.yml up -d --build
+docker compose -f compose.yml exec backend uv run alembic upgrade head
+docker compose -f compose.yml exec backend uv run python seed.py
+```
+
+Diferencias con dev: **no hay servicio `frontend`** — la imagen de `nginx` es multi-stage
+(`infrastructure/nginx/Dockerfile`): compila la SPA (`pnpm build`) y sirve el bundle
+estático + hace de proxy a la API. `DOCS_ENABLED` por defecto lo pones a `false` en el
+`.env`. El nombre de la app se sirve en runtime (`GET /api/v1/config`), así que no hay
+que reconstruir el frontend para cambiarlo.
 
 - API + docs (OpenAPI 3.1 autogenerado): Swagger UI `http://localhost:8087/api/docs` ·
   ReDoc `/api/redoc` · spec `/api/openapi.json`. El spec declara los dos esquemas de

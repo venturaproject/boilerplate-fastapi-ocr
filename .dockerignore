@@ -1,0 +1,26 @@
+.git
+.claude
+scratchpad
+
+# node / frontend
+**/node_modules
+frontend/dist
+frontend/.pnpm-store
+
+# python / backend
+**/__pycache__
+**/*.pyc
+**/.venv
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+backend/.paddlex
+backend/media
+
+# never bake env files into an image (prod passes env via compose)
+**/.env
+!**/.env.example
+
+# editors
+.vscode
+.idea

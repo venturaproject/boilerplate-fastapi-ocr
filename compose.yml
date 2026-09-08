@@ -129,20 +129,18 @@ services:
       backend:
         condition: service_started
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    depends_on:
-      - backend
-
+  # nginx builds the SPA (multi-stage) and serves the static bundle + proxies the API.
+  # No separate frontend service in production.
   nginx:
     build:
-      context: ./infrastructure/nginx
+      context: .
+      dockerfile: infrastructure/nginx/Dockerfile
+      args:
+        VITE_APP_NAME: ${VITE_APP_NAME:-Ocrer}
+        VITE_PUBLIC_API_URL: ${VITE_PUBLIC_API_URL:-}
     ports:
       - "${NGINX_PORT:-80}:80"
     depends_on:
-      - frontend
       - backend
 
 volumes:
