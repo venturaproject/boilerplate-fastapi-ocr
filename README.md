@@ -16,20 +16,43 @@ puntos de extensión.
 
 ### Estructura del repositorio
 
-`backend/` y `frontend/` son **repositorios git independientes** (rama `main` cada uno). Este
-repo raíz versiona solo la capa de infraestructura: `infrastructure/`, `compose*.yml`,
-`Makefile`, `README.md`, `.env.example`.
+**Monorepo** — un único repo git:
+
+```
+boilerplate-fastapi-ocr/
+├── backend/            FastAPI + PaddleOCR + Alembic  (tiene su .env.example para correr suelto)
+├── frontend/           React 19 + Vite + shadcn/ui
+├── infrastructure/     Dockerfiles, nginx, prometheus, grafana
+├── compose.dev.yml     stack de desarrollo (hot-reload)
+├── compose.yml         stack de producción
+├── compose.observability.yml   overlay opcional Prometheus + Grafana
+├── Makefile            atajos (usa compose.dev.yml)
+└── .env.example        configuración (cópialo a .env)
+```
 
 ## Puesta en marcha
 
+**Requisitos**: Docker + Docker Compose. Nada más — Python, Node y pnpm viven en los contenedores.
+
 ```bash
-cp .env.example .env          # ajusta SECRET_KEY, credenciales, puertos…
+git clone https://github.com/TU_USUARIO/boilerplate-fastapi-ocr.git
+cd boilerplate-fastapi-ocr
+
+cp .env.example .env          # ajusta SECRET_KEY (≥32 chars), credenciales, puertos…
 make build
 make up                       # postgres · backend · ocr-worker · frontend (Vite) · nginx · worker de eventos
-make migrate && make seed     # crea tablas, permisos y un API client de ejemplo ("ocr-demo")
+make migrate && make seed     # crea tablas, permisos, el usuario admin y un API client de ejemplo ("ocr-demo")
 ```
 
-El `Makefile` y `make` usan **`compose.dev.yml`** (hot-reload, Vite dev server).
+Listo en `http://localhost:8087` (puerto configurable con `NGINX_PORT`):
+
+| | URL | Credenciales |
+|---|---|---|
+| Panel admin | `http://localhost:8087/admin` | `admin@example.com` / `password` (del `.env`) |
+| API + Swagger | `http://localhost:8087/api/docs` | — |
+
+`make seed` imprime el `client_id` / `client_secret` del cliente `ocr-demo` para probar la API externa.
+El `Makefile` usa **`compose.dev.yml`** (hot-reload, Vite dev server); `make help` lista todos los atajos.
 
 ### Producción — `compose.yml`
 
@@ -51,9 +74,8 @@ que reconstruir el frontend para cambiarlo.
   botón **Authorize** de Swagger funciona. La variable de entorno del backend
   **`DOCS_ENABLED=false`** desactiva las tres rutas (`404`) — ponla así en el entorno de
   producción, sea cual sea el despliegue (uvicorn, systemd, k8s, Docker).
-- Panel: `http://localhost:8087/admin` → menú **OCR** (playground · Trabajos · Documentos).
-  El dashboard muestra métricas de OCR (por tipo de documento, por modo, latencia, actividad).
-- `make seed` imprime el `client_id` / `client_secret` del cliente `ocr-demo`.
+- El panel `/admin` → menú **OCR** (playground · Trabajos · Documentos); el dashboard muestra
+  métricas de OCR (por tipo de documento, por modo, latencia, actividad).
 
 ### Motores OCR (`OCR_ENGINE`)
 
