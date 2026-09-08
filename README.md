@@ -14,7 +14,47 @@ The vertical-slice pattern (`app/domain/<x>/` + `app/repositories/<x>.py` +
 `app/routers/<x>.py`) and the event infrastructure (CQRS · outbox · inbox) are left as
 extension points.
 
-### Repository layout
+## Features
+
+- **Two OCR modes** — synchronous (`POST /api/ext/ocr`, immediate) or an asynchronous job
+  queue with signed webhooks, dead-letter and redelivery.
+- **Pluggable OCR engine** — PaddleOCR (default), Tesseract, or a deterministic `fake` stub
+  for CI; automatic language detection.
+- **Output formats** — JSON, plain text, hOCR, ALTO v3 XML, or a **searchable PDF**
+  (image + invisible text layer).
+- **Document intelligence** — rule-based type classification (invoice, CV, payslip, contract…)
+  + per-type field extraction (totals, dates, tax IDs, IBANs…), optional PII redaction.
+- **External API** — `client_id`/`client_secret` → Bearer + scopes, per-client rate limits
+  and monthly page quotas, secret rotation, usage metering (`client_usage`).
+- **Document registry** — every call recorded in Postgres, survives the job retention purge.
+- **Batteries included** — cookie-JWT admin panel (React 19 + shadcn/ui), RBAC, account
+  lockout, audit log, CSRF, SSRF-guarded + IP-pinned callbacks.
+- **Observability** — Prometheus `GET /metrics`, JSON logs, `X-Request-ID`, optional
+  Grafana overlay with a provisioned dashboard.
+- **Production build** — multi-stage nginx image that compiles the SPA and serves it +
+  proxies the API; CQRS + outbox/inbox event infra as an extension point.
+
+## Contents
+
+- [Repository layout](#repository-layout)
+- [Getting started](#getting-started)
+- [Production](#production)
+- [OCR engines](#ocr-engines)
+- [External API authentication](#external-api-authentication)
+- [Endpoints](#endpoints) — [sync](#synchronous-ocr) · [classify](#classification) ·
+  [extraction](#field-extraction) · [async jobs](#asynchronous-jobs) · [batch](#batch) ·
+  [webhooks](#webhook-verification) · [retries & retention](#retries-and-retention)
+- [Document registry](#document-registry)
+- [Quotas, metering & secret rotation](#quotas-metering-and-secret-rotation)
+- [OCR configuration (`.env`)](#ocr-configuration-env)
+- [Development](#development) — [code quality](#code-quality-backend) ·
+  [architecture](#ocr-architecture) · [readiness](#readiness)
+- [Observability](#observability)
+- [Security](#security)
+- [Known limitations](#known-limitations)
+- [Roadmap](#roadmap)
+
+## Repository layout
 
 **Monorepo** — a single git repo:
 
@@ -56,7 +96,9 @@ Ready at `http://localhost:8087` (port configurable with `NGINX_PORT`):
 the external API. The `Makefile` uses **`compose.dev.yml`** (hot-reload, Vite dev server);
 `make help` lists every shortcut.
 
-### Production — `compose.yml`
+## Production
+
+`compose.yml`:
 
 ```bash
 docker compose -f compose.yml up -d --build
@@ -78,7 +120,9 @@ runtime (`GET /api/v1/config`), so you don't rebuild the frontend to change it.
 - The `/admin` panel → **OCR** menu (playground · Jobs · Documents); the dashboard shows OCR
   metrics (by document type, by mode, latency, activity).
 
-### OCR engines (`OCR_ENGINE`)
+## OCR engines
+
+Selected with `OCR_ENGINE`:
 
 | value | engine | notes |
 |---|---|---|
@@ -110,7 +154,9 @@ Scopes: `ocr:write` (submit), `ocr:read` (query).
 
 ## Endpoints
 
-### Synchronous — `POST /api/ext/ocr`  *(scope `ocr:write`)*
+### Synchronous OCR
+
+`POST /api/ext/ocr` — scope `ocr:write`.
 
 ```bash
 curl -X POST http://localhost:8087/api/ext/ocr \
@@ -151,7 +197,9 @@ curl -X POST http://localhost:8087/api/ext/ocr \
 - Invalid `lang` → `422`. Limits: `OCR_SYNC_MAX_BYTES` (10 MB), `OCR_SYNC_MAX_PAGES` (5),
   `OCR_MAX_IMAGE_MEGAPIXELS` (40, anti-bomb). For more, use jobs.
 
-### Document classification — `POST /api/ext/ocr/classify`  *(scope `ocr:write`)*
+### Classification
+
+`POST /api/ext/ocr/classify` — scope `ocr:write`.
 
 Recognizes the type from the OCR text (keyword rules, no dependencies or training):
 `invoice`, `cv`, `payslip`, `contract`, `id_document`, `bank_statement`, `delivery_note`, `receipt`.
@@ -185,7 +233,9 @@ structured fields per type — invoice: `total`, `date`, `tax_id`, `invoice_numb
 With `DOCUMENT_REDACT_PII=true` the stored excerpt (`documents.text_excerpt` and the one from
 `/classify`) masks email / national ID / IBAN / phone / card numbers.
 
-### Asynchronous — `POST /api/ext/ocr/jobs`  *(scope `ocr:write`)*
+### Asynchronous jobs
+
+`POST /api/ext/ocr/jobs` — scope `ocr:write`.
 
 ```bash
 curl -X POST http://localhost:8087/api/ext/ocr/jobs \
@@ -205,7 +255,9 @@ curl -X POST http://localhost:8087/api/ext/ocr/jobs \
 - If `callback_url` was given, the worker sends a signed `POST` with the same body as
   `GET .../jobs/{id}`.
 
-### Batch — `POST /api/ext/ocr/jobs:batch`  *(scope `ocr:write`)*
+### Batch
+
+`POST /api/ext/ocr/jobs:batch` — scope `ocr:write`.
 
 Several `files` in one multipart (or **a single `.zip`**) → N jobs sharing a `batch_id`
 (max `OCR_BATCH_MAX_FILES`). `GET /api/ext/ocr/batches/{batch_id}` returns the per-status
@@ -215,9 +267,10 @@ breakdown and the job list.
 - A `429` includes `Retry-After` (seconds). Default rate limit `THROTTLE_OCR` (`30/60`), with
   a per-client override (see [Quotas & metering](#quotas-metering-and-secret-rotation)).
 
-### Verifying the webhook (`callback_url`)
+### Webhook verification
 
-Every callback `POST` carries `X-OCR-Timestamp` and `X-OCR-Signature` headers:
+Every callback `POST` (to the job's `callback_url`) carries `X-OCR-Timestamp` and
+`X-OCR-Signature` headers:
 
 ```
 signature = "sha256=" + hmac_sha256(OCR_CALLBACK_SIGNING_SECRET, f"{X-OCR-Timestamp}." + raw_body)
@@ -386,7 +439,7 @@ frontend).
 (`src/app.tsx` → `applyRuntimeConfig`); the `VITE_*` vars are only a build-time fallback. So
 the app name changes in the backend `.env`, with no frontend rebuild.
 
-OCR architecture:
+### OCR architecture
 
 - `app/services/ocr/` — `loader.py` (image/PDF → pages), `engine.py` (`PaddleOcrEngine` /
   `FakeOcrEngine` + `warmup`), `service.py` (inference off the event loop), `jobs.py` (shared
