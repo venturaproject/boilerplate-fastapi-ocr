@@ -332,6 +332,10 @@ make purge-ocr           # purga jobs vencidos y sus archivos
 make logs-ocr-worker
 ```
 
+Toda la configuración del backend la lee `app/config.py::Settings` (pydantic-settings) de
+la variable de entorno o del `.env`. Para correr el backend **sin Docker** hay una
+plantilla propia con los comandos y valores locales: `backend/.env.example`.
+
 Arquitectura OCR:
 
 - `app/services/ocr/` — `loader.py` (imagen/PDF → páginas), `engine.py` (`PaddleOcrEngine` /
