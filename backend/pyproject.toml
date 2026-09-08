@@ -74,7 +74,7 @@ target-version = "py312"
 exclude = ["migrations", ".venv"]
 
 [tool.ruff.format]
-# Formateo opinado tipo "Pint": `make format-backend` aplica, `make lint-backend` verifica.
+# Formateo opinado: `make format-backend` aplica, `make lint-backend` verifica.
 docstring-code-format = true
 
 [tool.ruff.lint.per-file-ignores]
@@ -99,7 +99,7 @@ ignore = [
 ]
 
 [tool.mypy]
-# Análisis estático estricto tipo "PHPStan level max" sobre app/.
+# Análisis estático estricto sobre app/ (disallow_untyped_defs, strict_equality, …).
 python_version = "3.12"
 ignore_missing_imports = true
 warn_unused_ignores = true

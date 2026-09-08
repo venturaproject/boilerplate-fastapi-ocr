@@ -86,7 +86,7 @@ test-backend: ## Ejecuta la suite de pytest del backend
 
 # ── Backend ───────────────────────────────────────────────────────────────────
 
-format-backend: ## Ruff format (aplica el estilo, tipo `pint`)
+format-backend: ## Ruff format — aplica el estilo
 	$(BE) uv run ruff format .
 
 lint-backend: ## Ruff: formato (--check) + lint
@@ -97,7 +97,7 @@ lint-backend-fix: ## Ruff: aplica formato + lint con autofix
 	$(BE) uv run ruff format .
 	$(BE) uv run ruff check . --fix
 
-type-check-backend: ## Mypy (análisis estático estricto, tipo `phpstan`)
+type-check-backend: ## Mypy — análisis estático estricto
 	$(BE) uv run mypy app/
 
 check-backend: lint-backend type-check-backend test-backend ## Gate completo del backend (formato + lint + tipos + tests)

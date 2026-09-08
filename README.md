@@ -403,22 +403,16 @@ In the panel: **Users → API Clients** ("Limits & usage" column, edit limits, "
 
 ### Code quality (backend)
 
-Laravel-stack equivalents:
+| Command | What it does |
+|---|---|
+| `make format-backend` | `ruff format` — apply formatting |
+| `make lint-backend` | `ruff format --check` + `ruff check` — verify, no changes |
+| `make lint-backend-fix` | formatting + lint autofix |
+| `make type-check-backend` | strict `mypy` over `app/` |
+| `make check-backend` | format + lint + types + tests (the CI gate) |
 
-| Laravel | Here | Command |
-|---|---|---|
-| Pint (formatter) | `ruff format` | `make format-backend` |
-| PHP_CodeSniffer / lint | `ruff check` | (included in `make lint-backend`) |
-| PHPStan (static analysis) | strict `mypy` | `make type-check-backend` |
-| — (CI gate) | all together | `make check-backend` |
-
-- `make lint-backend` checks **formatting** (`ruff format --check`) **and** lint without
-  changing anything.
-- `make lint-backend-fix` applies formatting + lint autofix.
-- `mypy` runs with `disallow_untyped_defs`, `strict_equality`, `warn_unreachable`,
-  `check_untyped_defs`, `extra_checks` and `disallow_incomplete_defs` over `app/`
-  ("PHPStan max" level); config in `backend/pyproject.toml`.
-- `make check-backend` = format + lint + types + tests (what CI runs).
+`mypy` runs with `disallow_untyped_defs`, `disallow_incomplete_defs`, `strict_equality`,
+`warn_unreachable`, `check_untyped_defs` and `extra_checks`; config in `backend/pyproject.toml`.
 
 ```bash
 make check-backend       # full backend gate
