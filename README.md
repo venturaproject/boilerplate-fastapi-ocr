@@ -1,60 +1,62 @@
 # boilerplate-fastapi-ocr
 
-API de **OCR** basada en [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), construida
-sobre el boilerplate FastAPI + React (auth cookie‑JWT, CQRS, outbox/inbox, Postgres, y una
-capa de **API externa** con `client_id`/`client_secret` → Bearer + scopes).
+An **OCR** API powered by [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), built on a
+FastAPI + React boilerplate (cookie‑JWT auth, CQRS, outbox/inbox, Postgres, and an
+**external API** layer with `client_id`/`client_secret` → Bearer + scopes).
 
-Cualquier aplicación externa puede enviar **imágenes o PDFs** y recibir el **texto
-reconocido** — de forma **síncrona** (respuesta inmediata) o **asíncrona** (cola de
-trabajos + webhook opcional).
+Any external application can submit **images or PDFs** and get back the **recognized text** —
+either **synchronously** (immediate response) or **asynchronously** (job queue + optional
+webhook).
 
-El dominio se centra en el OCR: **usuarios / roles / permisos**, la **API externa**
-(`api_clients`), los **trabajos** (`ocr_jobs`) y el **registro de documentos** (`documents`).
-El patrón vertical-slice (`app/domain/<x>/` + `app/repositories/<x>.py` +
-`app/routers/<x>.py`) y la infraestructura de eventos (CQRS · outbox · inbox) quedan como
-puntos de extensión.
+The domain is OCR-focused: **users / roles / permissions**, the **external API**
+(`api_clients`), the **jobs** (`ocr_jobs`) and the **document registry** (`documents`).
+The vertical-slice pattern (`app/domain/<x>/` + `app/repositories/<x>.py` +
+`app/routers/<x>.py`) and the event infrastructure (CQRS · outbox · inbox) are left as
+extension points.
 
-### Estructura del repositorio
+### Repository layout
 
-**Monorepo** — un único repo git:
+**Monorepo** — a single git repo:
 
 ```
 boilerplate-fastapi-ocr/
-├── backend/            FastAPI + PaddleOCR + Alembic  (tiene su .env.example para correr suelto)
+├── backend/            FastAPI + PaddleOCR + Alembic  (has its own .env.example for running standalone)
 ├── frontend/           React 19 + Vite + shadcn/ui
 ├── infrastructure/     Dockerfiles, nginx, prometheus, grafana
-├── compose.dev.yml     stack de desarrollo (hot-reload)
-├── compose.yml         stack de producción
-├── compose.observability.yml   overlay opcional Prometheus + Grafana
-├── Makefile            atajos (usa compose.dev.yml)
-└── .env.example        configuración (cópialo a .env)
+├── compose.dev.yml     development stack (hot-reload)
+├── compose.yml         production stack
+├── compose.observability.yml   optional Prometheus + Grafana overlay
+├── Makefile            shortcuts (uses compose.dev.yml)
+└── .env.example        configuration (copy to .env)
 ```
 
-## Puesta en marcha
+## Getting started
 
-**Requisitos**: Docker + Docker Compose. Nada más — Python, Node y pnpm viven en los contenedores.
+**Requirements**: Docker + Docker Compose. Nothing else — Python, Node and pnpm live in the
+containers.
 
 ```bash
 git clone https://github.com/venturaproject/boilerplate-fastapi-ocr.git
 cd boilerplate-fastapi-ocr
 
-cp .env.example .env          # ajusta SECRET_KEY (≥32 chars), credenciales, puertos…
+cp .env.example .env          # set SECRET_KEY (≥32 chars), credentials, ports…
 make build
-make up                       # postgres · backend · ocr-worker · frontend (Vite) · nginx · worker de eventos
-make migrate && make seed     # crea tablas, permisos, el usuario admin y un API client de ejemplo ("ocr-demo")
+make up                       # postgres · backend · ocr-worker · frontend (Vite) · nginx · event worker
+make migrate && make seed     # creates tables, permissions, the admin user and a sample API client ("ocr-demo")
 ```
 
-Listo en `http://localhost:8087` (puerto configurable con `NGINX_PORT`):
+Ready at `http://localhost:8087` (port configurable with `NGINX_PORT`):
 
-| | URL | Credenciales |
+| | URL | Credentials |
 |---|---|---|
-| Panel admin | `http://localhost:8087/admin` | `admin@example.com` / `password` (del `.env`) |
+| Admin panel | `http://localhost:8087/admin` | `admin@example.com` / `password` (from `.env`) |
 | API + Swagger | `http://localhost:8087/api/docs` | — |
 
-`make seed` imprime el `client_id` / `client_secret` del cliente `ocr-demo` para probar la API externa.
-El `Makefile` usa **`compose.dev.yml`** (hot-reload, Vite dev server); `make help` lista todos los atajos.
+`make seed` prints the `client_id` / `client_secret` of the `ocr-demo` client so you can try
+the external API. The `Makefile` uses **`compose.dev.yml`** (hot-reload, Vite dev server);
+`make help` lists every shortcut.
 
-### Producción — `compose.yml`
+### Production — `compose.yml`
 
 ```bash
 docker compose -f compose.yml up -d --build
@@ -62,59 +64,58 @@ docker compose -f compose.yml exec backend uv run alembic upgrade head
 docker compose -f compose.yml exec backend uv run python seed.py
 ```
 
-Diferencias con dev: **no hay servicio `frontend`** — la imagen de `nginx` es multi-stage
-(`infrastructure/nginx/Dockerfile`): compila la SPA (`pnpm build`) y sirve el bundle
-estático + hace de proxy a la API. `DOCS_ENABLED` por defecto lo pones a `false` en el
-`.env`. El nombre de la app se sirve en runtime (`GET /api/v1/config`), así que no hay
-que reconstruir el frontend para cambiarlo.
+Differences from dev: **there is no `frontend` service** — the `nginx` image is multi-stage
+(`infrastructure/nginx/Dockerfile`): it builds the SPA (`pnpm build`) and serves the static
+bundle + proxies the API. Set `DOCS_ENABLED=false` in `.env`. The app name is served at
+runtime (`GET /api/v1/config`), so you don't rebuild the frontend to change it.
 
-- API + docs (OpenAPI 3.1 autogenerado): Swagger UI `http://localhost:8087/api/docs` ·
-  ReDoc `/api/redoc` · spec `/api/openapi.json`. El spec declara los dos esquemas de
-  auth (`ExternalBearer` para `/api/ext/*`, `SessionCookie` para el panel), así que el
-  botón **Authorize** de Swagger funciona. La variable de entorno del backend
-  **`DOCS_ENABLED=false`** desactiva las tres rutas (`404`) — ponla así en el entorno de
-  producción, sea cual sea el despliegue (uvicorn, systemd, k8s, Docker).
-- El panel `/admin` → menú **OCR** (playground · Trabajos · Documentos); el dashboard muestra
-  métricas de OCR (por tipo de documento, por modo, latencia, actividad).
+- API + docs (auto-generated OpenAPI 3.1): Swagger UI `http://localhost:8087/api/docs` ·
+  ReDoc `/api/redoc` · spec `/api/openapi.json`. The spec declares the two auth schemes
+  (`ExternalBearer` for `/api/ext/*`, `SessionCookie` for the panel), so Swagger's
+  **Authorize** button works. The backend env var **`DOCS_ENABLED=false`** disables all
+  three routes (`404`) — set it that way in production, whatever the deployment (uvicorn,
+  systemd, k8s, Docker).
+- The `/admin` panel → **OCR** menu (playground · Jobs · Documents); the dashboard shows OCR
+  metrics (by document type, by mode, latency, activity).
 
-### Motores OCR (`OCR_ENGINE`)
+### OCR engines (`OCR_ENGINE`)
 
-| valor | motor | notas |
+| value | engine | notes |
 |---|---|---|
-| `paddle` *(def.)* | **PaddleOCR** (pin en 2.x; `engine.py` ya soporta la API 3.x) | mejor precisión; `paddlepaddle` ≈ 1 GB, se instala en la imagen |
-| `tesseract` | **Tesseract** (`pytesseract` + binario) | alternativa ligera; requiere los language packs de la imagen |
-| `fake` | stub determinista | tests / CI / dev sin dependencias pesadas |
+| `paddle` *(default)* | **PaddleOCR** (pinned to 2.x; `engine.py` already supports the 3.x API) | best accuracy; `paddlepaddle` ≈ 1 GB, installed in the image |
+| `tesseract` | **Tesseract** (`pytesseract` + binary) | lightweight alternative; needs the image's language packs |
+| `fake` | deterministic stub | tests / CI / dev without heavy deps |
 
-> En Apple Silicon, si `paddlepaddle` no tiene wheel para tu plataforma, usa
-> `OCR_ENGINE=fake` (o `tesseract`), o ejecuta el servicio en un host x86_64. El wrapper
-> de `engine.py` ya habla la API 3.x (PP‑OCRv5) pero el **pin sigue en 2.x**: paddle 3.x
-> hace *segfault* / op no implementada (oneDNN+PIR) en CPU bajo emulación. Subir el pin a
-> `>=3` y verificarlo en CI x86 es el paso pendiente (`OCR_PADDLE_MKLDNN` da el toggle).
+> On Apple Silicon, if `paddlepaddle` has no wheel for your platform, use `OCR_ENGINE=fake`
+> (or `tesseract`), or run the service on an x86_64 host. The `engine.py` wrapper already
+> speaks the 3.x API (PP‑OCRv5) but the **pin stays on 2.x**: paddle 3.x segfaults / raises
+> an unimplemented op (oneDNN+PIR) on CPU under emulation. Bumping the pin to `>=3` and
+> verifying it on x86 CI is the pending step (`OCR_PADDLE_MKLDNN` is the toggle).
 
-**Detección automática de idioma**: con `OCR_LANG_AUTODETECT=true`, si la petición no
-fija `lang`, se detecta del texto (heurística es/en/fr/de/pt) y se reejecuta una vez con
-el idioma detectado; la respuesta marca `lang_detected: true`.
+**Automatic language detection**: with `OCR_LANG_AUTODETECT=true`, if the request doesn't set
+`lang`, it's detected from the text (es/en/fr/de/pt heuristic) and OCR re-runs once with the
+detected language; the response sets `lang_detected: true`.
 
-## Autenticación de la API externa
+## External API authentication
 
 ```bash
-# 1. Obtener un token de acceso
+# 1. Get an access token
 curl -X POST http://localhost:8087/api/ext/auth/token \
   -H 'Content-Type: application/json' \
   -d '{"client_id":"cli_…","client_secret":"…"}'
 # → { "access_token": "…", "refresh_token": "…", "expires_in": 900, "scopes": ["ocr:write","ocr:read"] }
 ```
 
-Scopes: `ocr:write` (enviar), `ocr:read` (consultar).
+Scopes: `ocr:write` (submit), `ocr:read` (query).
 
 ## Endpoints
 
-### Síncrono — `POST /api/ext/ocr`  *(scope `ocr:write`)*
+### Synchronous — `POST /api/ext/ocr`  *(scope `ocr:write`)*
 
 ```bash
 curl -X POST http://localhost:8087/api/ext/ocr \
   -H "Authorization: Bearer $TOKEN" \
-  -F file=@factura.png \
+  -F file=@invoice.png \
   -F lang=es
 ```
 
@@ -127,392 +128,398 @@ curl -X POST http://localhost:8087/api/ext/ocr \
     {
       "page": 1, "width": 1240, "height": 1754,
       "lines": [
-        { "text": "FACTURA", "confidence": 0.998, "box": [[100,80],[260,80],[260,120],[100,120]] }
+        { "text": "INVOICE", "confidence": 0.998, "box": [[100,80],[260,80],[260,120],[100,120]] }
       ],
-      "text": "FACTURA\n…"
+      "text": "INVOICE\n…"
     }
   ],
-  "text": "FACTURA\n…",
+  "text": "INVOICE\n…",
   "processing_ms": 842,
   "cached": false
 }
 ```
 
-- **Formato de salida** con `?format=` — `json` (por defecto) · `text` · `hocr` · `alto` ·
-  `pdf` (PDF buscable = imagen + capa de texto invisible). También en
-  `GET /api/ext/ocr/jobs/{id}?format=` (el `pdf` re-lee el original vía el storage).
-- Las líneas salen en **orden de lectura** (filas por `y`, cada fila de izquierda a
-  derecha; desactivable con `OCR_SORT_READING_ORDER=false`).
-- Resultados idénticos (mismo contenido + idioma) se sirven de **caché**
-  (`cached: true`) durante `OCR_SYNC_CACHE_TTL_SECONDS`.
-- Incluye `classification` y `extraction` (ver abajo).
-- `lang` inválido → `422`. Límites: `OCR_SYNC_MAX_BYTES` (10 MB),
-  `OCR_SYNC_MAX_PAGES` (5), `OCR_MAX_IMAGE_MEGAPIXELS` (40, anti-bomba). Para más, usa los jobs.
+- **Output format** with `?format=` — `json` (default) · `text` · `hocr` · `alto` · `pdf`
+  (searchable PDF = image + invisible text layer). Also on
+  `GET /api/ext/ocr/jobs/{id}?format=` (the `pdf` re-reads the original via the storage
+  backend).
+- Lines are returned in **reading order** (rows by `y`, each row left to right; disable with
+  `OCR_SORT_READING_ORDER=false`).
+- Identical results (same content + language) are served from a **cache** (`cached: true`)
+  for `OCR_SYNC_CACHE_TTL_SECONDS`.
+- Includes `classification` and `extraction` (see below).
+- Invalid `lang` → `422`. Limits: `OCR_SYNC_MAX_BYTES` (10 MB), `OCR_SYNC_MAX_PAGES` (5),
+  `OCR_MAX_IMAGE_MEGAPIXELS` (40, anti-bomb). For more, use jobs.
 
-### Clasificación de documento — `POST /api/ext/ocr/classify`  *(scope `ocr:write`)*
+### Document classification — `POST /api/ext/ocr/classify`  *(scope `ocr:write`)*
 
-Reconoce el tipo a partir del texto OCR (reglas de keywords, sin dependencias ni entrenamiento):
+Recognizes the type from the OCR text (keyword rules, no dependencies or training):
 `invoice`, `cv`, `payslip`, `contract`, `id_document`, `bank_statement`, `delivery_note`, `receipt`.
 
 ```bash
 curl -X POST http://localhost:8087/api/ext/ocr/classify \
-  -H "Authorization: Bearer $TOKEN" -F file=@factura.pdf
+  -H "Authorization: Bearer $TOKEN" -F file=@invoice.pdf
 # → { "doc_type": "invoice", "confidence": 0.86,
 #     "scores": {"invoice": 0.86, "receipt": 0.14},
-#     "lang": "es", "page_count": 1, "text_excerpt": "FACTURA Nº …",
+#     "lang": "es", "page_count": 1, "text_excerpt": "INVOICE No …",
 #     "extraction": { "doc_type": "invoice",
-#       "fields": { "total": {"value": "121,00", ...}, "tax_id": {...}, "date": {...} } } }
+#       "fields": { "total": {"value": "121.00", ...}, "tax_id": {...}, "date": {...} } } }
 ```
 
-`doc_type` es `null` si ninguna clase supera `OCR_CLASSIFIER_MIN_SCORE` /
-`OCR_CLASSIFIER_MIN_CONFIDENCE`. El mismo `classification` viaja en la respuesta de
-`/api/ext/ocr` y se guarda como `doc_type` en los jobs (filtrable en `/jobs?doc_type=…`,
-agregado en `/stats.by_doc_type`). Backends: `OCR_CLASSIFIER=rules` (por defecto) ·
-`none` · `ml` (modelo `joblib` entrenado con `scripts/train_classifier.py`, extra `ml`) ·
-`llm` (interfaz + stub, sin proveedor).
+`doc_type` is `null` if no class beats `OCR_CLASSIFIER_MIN_SCORE` /
+`OCR_CLASSIFIER_MIN_CONFIDENCE`. The same `classification` travels in the `/api/ext/ocr`
+response and is stored as `doc_type` on jobs (filterable via `/jobs?doc_type=…`, aggregated
+in `/stats.by_doc_type`). Backends: `OCR_CLASSIFIER=rules` (default) · `none` · `ml`
+(`joblib` model trained with `scripts/train_classifier.py`, extra `ml`) · `llm` (interface +
+stub, no provider).
 
-### Extracción de campos
+### Field extraction
 
-Tras clasificar, `OCR_EXTRACTOR=rules` (por defecto; `none` / `llm` disponibles) extrae
-campos estructurados según el tipo — factura: `total`, `date`, `tax_id`, `invoice_number`;
-nómina: `net_pay`, `gross_pay`, `period`; extracto: `iban`, `closing_balance`; DNI:
-`document_number`, `birth_date`… Viaja como `extraction` en la respuesta de `/api/ext/ocr`
-y `/classify`, y se guarda en `documents.extraction`. Cada campo lleva `value` + `raw`.
+After classification, `OCR_EXTRACTOR=rules` (default; `none` / `llm` available) extracts
+structured fields per type — invoice: `total`, `date`, `tax_id`, `invoice_number`; payslip:
+`net_pay`, `gross_pay`, `period`; bank statement: `iban`, `closing_balance`; ID card:
+`document_number`, `birth_date`… It travels as `extraction` in the `/api/ext/ocr` and
+`/classify` responses, and is stored in `documents.extraction`. Each field carries `value` +
+`raw`.
 
-Con `DOCUMENT_REDACT_PII=true` el extracto guardado (`documents.text_excerpt` y el de
-`/classify`) enmascara email / DNI / NIE / IBAN / teléfono / tarjeta.
+With `DOCUMENT_REDACT_PII=true` the stored excerpt (`documents.text_excerpt` and the one from
+`/classify`) masks email / national ID / IBAN / phone / card numbers.
 
-### Asíncrono — `POST /api/ext/ocr/jobs`  *(scope `ocr:write`)*
+### Asynchronous — `POST /api/ext/ocr/jobs`  *(scope `ocr:write`)*
 
 ```bash
 curl -X POST http://localhost:8087/api/ext/ocr/jobs \
   -H "Authorization: Bearer $TOKEN" \
-  -F file=@documento.pdf \
+  -F file=@document.pdf \
   -F lang=es \
-  -F callback_url=https://mi-app.example/webhooks/ocr
+  -F callback_url=https://my-app.example/webhooks/ocr
 # → 202  { "id": "…", "status": "pending", … }
 ```
 
-- `202` incluye la cabecera `Location: /api/ext/ocr/jobs/{id}`.
-- `GET /api/ext/ocr/jobs/{id}` — estado + `result` completo cuando `status = "done"`.
-- `GET /api/ext/ocr/jobs` — listado paginado **sin** `result` (solo metadatos; los del
-  cliente autenticado). Parámetros: `page`, `per_page` (máx. 100), `status`, `doc_type`,
+- `202` includes the header `Location: /api/ext/ocr/jobs/{id}`.
+- `GET /api/ext/ocr/jobs/{id}` — status + full `result` once `status = "done"`.
+- `GET /api/ext/ocr/jobs` — paginated list **without** `result` (metadata only; the
+  authenticated client's jobs). Params: `page`, `per_page` (max 100), `status`, `doc_type`,
   `search`, `callback` (`failed` | `pending`), `batch_id`.
-- `GET /api/ext/ocr/stats` — contadores por estado, antigüedad del pendiente más viejo, latencia media/p95.
-- Si se indicó `callback_url`, el worker hace `POST` firmado con el mismo cuerpo que `GET .../jobs/{id}`.
+- `GET /api/ext/ocr/stats` — counters per status, age of the oldest pending job, mean/p95 latency.
+- If `callback_url` was given, the worker sends a signed `POST` with the same body as
+  `GET .../jobs/{id}`.
 
-### Lote — `POST /api/ext/ocr/jobs:batch`  *(scope `ocr:write`)*
+### Batch — `POST /api/ext/ocr/jobs:batch`  *(scope `ocr:write`)*
 
-Varios `files` en un multipart (o **un `.zip`**) → N jobs con el mismo `batch_id`
-(máx. `OCR_BATCH_MAX_FILES`). `GET /api/ext/ocr/batches/{batch_id}` devuelve el desglose
-por estado y la lista de jobs.
-- Envía una cabecera `Idempotency-Key` para que un reintento de red no cree un job duplicado
-  (se replica la respuesta original; ver `app/idempotency/`).
-- Un `429` incluye `Retry-After` (segundos). Rate‑limit por defecto `THROTTLE_OCR` (`30/60`),
-  con override por cliente (ver [Cuotas y medición](#cuotas-medición-y-rotación-de-secreto)).
+Several `files` in one multipart (or **a single `.zip`**) → N jobs sharing a `batch_id`
+(max `OCR_BATCH_MAX_FILES`). `GET /api/ext/ocr/batches/{batch_id}` returns the per-status
+breakdown and the job list.
+- Send an `Idempotency-Key` header so a network retry doesn't create a duplicate job (the
+  original response is replayed; see `app/idempotency/`).
+- A `429` includes `Retry-After` (seconds). Default rate limit `THROTTLE_OCR` (`30/60`), with
+  a per-client override (see [Quotas & metering](#quotas-metering-and-secret-rotation)).
 
-### Verificar el webhook (`callback_url`)
+### Verifying the webhook (`callback_url`)
 
-Cada `POST` de callback lleva cabeceras `X-OCR-Timestamp` y `X-OCR-Signature`:
+Every callback `POST` carries `X-OCR-Timestamp` and `X-OCR-Signature` headers:
 
 ```
-firma = "sha256=" + hmac_sha256(OCR_CALLBACK_SIGNING_SECRET, f"{X-OCR-Timestamp}." + cuerpo_crudo)
+signature = "sha256=" + hmac_sha256(OCR_CALLBACK_SIGNING_SECRET, f"{X-OCR-Timestamp}." + raw_body)
 ```
 
-Compara con `hmac.compare_digest` y rechaza timestamps viejos. `callback_url` se valida
-contra SSRF (se rechazan IPs privadas/loopback/link-local y, si `OCR_CALLBACK_ALLOWED_HOSTS`
-está fijado, hosts fuera de la lista). Los redirects no se siguen.
+Compare with `hmac.compare_digest` and reject stale timestamps. `callback_url` is validated
+against SSRF (private/loopback/link-local IPs are rejected and, if `OCR_CALLBACK_ALLOWED_HOSTS`
+is set, hosts outside the list). Redirects are not followed; the request is pinned to the IP
+that was vetted (closes DNS rebinding).
 
-### Reintentos y retención
+### Retries and retention
 
-- Un job que falla se reintenta hasta `OCR_JOB_MAX_ATTEMPTS` veces; si el worker se cae a
-  mitad, otro lo recupera pasados `OCR_JOB_STALE_SECONDS`.
-- **Webhook con dead-letter**: un callback fallido se reintenta con backoff
-  (`OCR_CALLBACK_BACKOFF_BASE_SECONDS * 2**n`) hasta `OCR_CALLBACK_MAX_ATTEMPTS` y luego
-  queda en *dead-letter* (`next_callback_at = null`). `POST .../jobs/{id}/redeliver`
-  (scope `ocr:write`) lo reencola; el estado va en `callback_status` / `callback_attempts`.
-- Los jobs terminados se borran (con sus archivos) pasados `OCR_JOB_RETENTION_DAYS`
-  — automático en el worker cada `OCR_PURGE_INTERVAL_SECONDS`, o manual con `make purge-ocr`.
-- Al arrancar, backend y worker precargan los modelos (`OCR_WARMUP_LANGS`), así la primera
-  petición no espera la descarga/carga.
+- A failed job is retried up to `OCR_JOB_MAX_ATTEMPTS` times; if the worker dies mid-way,
+  another picks it up after `OCR_JOB_STALE_SECONDS`.
+- **Webhook dead-letter**: a failed callback is retried with backoff
+  (`OCR_CALLBACK_BACKOFF_BASE_SECONDS * 2**n`) up to `OCR_CALLBACK_MAX_ATTEMPTS` and then
+  dead-lettered (`next_callback_at = null`). `POST .../jobs/{id}/redeliver` (scope
+  `ocr:write`) re-queues it; status lives in `callback_status` / `callback_attempts`.
+- Finished jobs are deleted (with their files) after `OCR_JOB_RETENTION_DAYS` — automatic in
+  the worker every `OCR_PURGE_INTERVAL_SECONDS`, or manual with `make purge-ocr`.
+- On startup, backend and worker preload the models (`OCR_WARMUP_LANGS`), so the first
+  request doesn't wait for the download/load.
 
-## Registro de documentos
+## Document registry
 
-**Toda** llamada a la API de OCR queda registrada en la tabla `documents` — una fila por
-petición, con `mode`:
+**Every** call to the OCR API is recorded in the `documents` table — one row per request,
+with a `mode`:
 
-| `mode` | Origen | `status` |
+| `mode` | Source | `status` |
 |---|---|---|
-| `sync` | `POST /api/ext/ocr` | siempre `done` (si falla, responde error y no se guarda) |
-| `classify` | `POST /api/ext/ocr/classify` | siempre `done` |
-| `async` | `POST /api/ext/ocr/jobs` | `pending` → `done` / `error` (lo actualiza el worker) |
+| `sync` | `POST /api/ext/ocr` | always `done` (on failure it returns an error and nothing is stored) |
+| `classify` | `POST /api/ext/ocr/classify` | always `done` |
+| `async` | `POST /api/ext/ocr/jobs` | `pending` → `done` / `error` (updated by the worker) |
 
-Cada fila guarda metadatos (`original_filename`, `content_type`, `size_bytes`, `lang`,
-`page_count`, `processing_ms`), el tipo de documento detectado (`doc_type`,
-`doc_type_confidence`), el número de caracteres reconocidos (`char_count`) y un **extracto
-del texto** (`text_excerpt`, primeros `DOCUMENT_TEXT_EXCERPT_CHARS` caracteres; `0` = no
-guardar texto). Las filas `async` enlazan con su `ocr_jobs.id` (`ocr_job_id`); ese enlace es
-`SET NULL`, así que el registro **sobrevive a la purga por retención de los jobs**.
+Each row stores metadata (`original_filename`, `content_type`, `size_bytes`, `lang`,
+`page_count`, `processing_ms`), the detected document type (`doc_type`,
+`doc_type_confidence`), the recognized character count (`char_count`) and a **text excerpt**
+(`text_excerpt`, first `DOCUMENT_TEXT_EXCERPT_CHARS` chars; `0` = store no text). `async` rows
+link to their `ocr_jobs.id` (`ocr_job_id`); that link is `SET NULL`, so the registry
+**survives the jobs' retention purge**.
 
-- El registro nunca puede tumbar una respuesta OCR: se escribe en su propia transacción y
-  cualquier error solo se loguea.
-- `record_document` no guarda el resultado OCR completo (eso vive en `ocr_jobs.result`
-  mientras el job no se purgue) — solo el extracto.
+- The registry can never break an OCR response: it's written in its own transaction and any
+  error is only logged.
+- `record_document` does not store the full OCR result (that lives in `ocr_jobs.result` until
+  the job is purged) — only the excerpt.
 
-### Panel — `/api/v1/documents` *(permiso `documents.view`)*
+### Panel — `/api/v1/documents` *(permission `documents.view`)*
 
-Autenticado con cookie‑JWT (no con el Bearer de la API externa):
+Authenticated with the cookie‑JWT (not the external API Bearer):
 
-- `GET /api/v1/documents` — listado paginado; filtros `mode`, `doc_type`, `status`,
-  `search` (nombre de archivo).
-- `GET /api/v1/documents/{id}` — una fila.
-- `GET /api/v1/documents/stats` — totales, desglose `by_mode` / `by_status` / `by_doc_type`,
-  documentos en las últimas 24 h, latencia media/p95.
-- `DELETE /api/v1/documents/{id}` — borra el registro (permiso `documents.delete`); el job
-  OCR asociado no se ve afectado.
+- `GET /api/v1/documents` — paginated list; filters `mode`, `doc_type`, `status`, `search`
+  (filename).
+- `GET /api/v1/documents/{id}` — one row.
+- `GET /api/v1/documents/stats` — totals, `by_mode` / `by_status` / `by_doc_type` breakdown,
+  documents in the last 24 h, mean/p95 latency.
+- `DELETE /api/v1/documents/{id}` — deletes the record (permission `documents.delete`); the
+  associated OCR job is not affected.
 
-En el panel: menú **OCR → Documentos**.
+In the panel: **OCR → Documents** menu.
 
-Retención propia opcional: `DOCUMENT_RETENTION_DAYS` (0 = conservar siempre); la purga corre
-en el worker de OCR junto con la de jobs.
+Optional own retention: `DOCUMENT_RETENTION_DAYS` (0 = keep forever); the purge runs in the
+OCR worker alongside the jobs purge.
 
-## Cuotas, medición y rotación de secreto
+## Quotas, metering and secret rotation
 
-Cada llamada OCR se contabiliza por `api_client` en la tabla `client_usage` (una fila por
-mes `YYYY-MM`: `pages` y `requests`). Se incrementa en el endpoint síncrono, en `classify`,
-al crear un job async y al procesarlo.
+Every OCR call is metered per `api_client` in the `client_usage` table (one row per month
+`YYYY-MM`: `pages` and `requests`). It's incremented on the sync endpoint, on `classify`,
+when an async job is created and when it's processed.
 
-- **Límites por cliente** (opcionales, sobrescriben el default global):
-  - `rate_limit` — formato `«n/segundos»` (p. ej. `120/60`); si es `null` se usa `THROTTLE_OCR`.
-  - `monthly_page_quota` — tope de páginas al mes; `null`/`0` = `OCR_DEFAULT_MONTHLY_PAGE_QUOTA`
-    (0 = ilimitado). Al agotarse, los endpoints `ocr:write` responden `429` con
-    `detail` de cuota; los `ocr:read` siguen funcionando.
-- **Cabeceras** en toda respuesta OCR: `X-RateLimit-Limit`, `X-RateLimit-Remaining`,
-  `X-RateLimit-Reset`; en escrituras con cuota, además `X-Quota-Limit` y `X-Quota-Remaining`.
-  El `429` mantiene `Retry-After`.
-- `GET /api/ext/ocr/usage` *(scope `ocr:read`)* — uso del mes en curso + cuota y rate‑limit
-  efectivos del cliente autenticado.
+- **Per-client limits** (optional, override the global default):
+  - `rate_limit` — `«n/seconds»` format (e.g. `120/60`); if `null`, `THROTTLE_OCR` is used.
+  - `monthly_page_quota` — monthly page cap; `null`/`0` = `OCR_DEFAULT_MONTHLY_PAGE_QUOTA`
+    (0 = unlimited). Once exhausted, `ocr:write` endpoints return `429` with a quota `detail`;
+    `ocr:read` keeps working.
+- **Headers** on every OCR response: `X-RateLimit-Limit`, `X-RateLimit-Remaining`,
+  `X-RateLimit-Reset`; on quota'd writes, also `X-Quota-Limit` and `X-Quota-Remaining`. The
+  `429` keeps `Retry-After`.
+- `GET /api/ext/ocr/usage` *(scope `ocr:read`)* — current-month usage + the authenticated
+  client's effective quota and rate limit.
 
-### Panel *(permiso `api_clients.manage`)*
+### Panel *(permission `api_clients.manage`)*
 
-- `PATCH /api/v1/api-clients/{id}` — fija `rate_limit` / `monthly_page_quota` (`rate_limit`
-  mal formado → `422`).
-- `GET /api/v1/api-clients/{id}/usage` — mismo desglose que `/usage` pero para cualquier cliente.
-- `POST /api/v1/api-clients/{id}/rotate` — genera un secreto nuevo (se muestra **una vez**) e
-  invalida el secreto anterior y todos sus tokens de acceso.
+- `PATCH /api/v1/api-clients/{id}` — sets `rate_limit` / `monthly_page_quota` (malformed
+  `rate_limit` → `422`).
+- `GET /api/v1/api-clients/{id}/usage` — same breakdown as `/usage` but for any client.
+- `POST /api/v1/api-clients/{id}/rotate` — generates a new secret (shown **once**) and
+  invalidates the previous secret and all its access tokens.
 
-En el panel: **Usuarios → Clientes API** (columna «Límites y uso», editar límites, «Rotar secreto»).
+In the panel: **Users → API Clients** ("Limits & usage" column, edit limits, "Rotate secret").
 
-## Configuración OCR (`.env`)
+## OCR configuration (`.env`)
 
-| Variable | Def. | Descripción |
+| Variable | Default | Description |
 |---|---|---|
-| `STORAGE_BACKEND` | `local` | `local` (volumen) o `s3` (`S3_BUCKET`, `S3_ENDPOINT_URL`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`) |
+| `STORAGE_BACKEND` | `local` | `local` (volume) or `s3` (`S3_BUCKET`, `S3_ENDPOINT_URL`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`) |
 | `OCR_ENGINE` | `paddle` | `paddle` · `tesseract` · `fake` |
-| `OCR_LANG` | `es` | idioma por defecto |
-| `OCR_LANG_AUTODETECT` | `false` | si no se pasa `lang`, detectarlo del texto y reejecutar |
-| `TESSERACT_CMD` | *(vacío)* | ruta al binario `tesseract` (vacío = en el PATH) |
-| `OCR_USE_GPU` | `false` | usar GPU (requiere `paddlepaddle-gpu`) |
-| `OCR_MODEL_DIR` | `/app/backend/.paddlex` | caché de modelos PaddleOCR/PaddleX |
-| `OCR_PDF_DPI` | `200` | DPI al rasterizar PDFs |
-| `OCR_SYNC_MAX_BYTES` / `OCR_SYNC_MAX_PAGES` | `10000000` / `5` | límites del endpoint síncrono |
-| `OCR_MAX_UPLOAD_BYTES` | `52428800` | límite de subida para jobs |
-| `OCR_MAX_IMAGE_MEGAPIXELS` | `40` | tope de píxeles por página/imagen (anti-bomba) |
-| `OCR_MAX_CONCURRENCY` | `2` | inferencias OCR simultáneas (por proceso) |
-| `OCR_ALLOWED_LANGS` | *(vacío)* | idiomas permitidos; vacío = set nativo de PaddleOCR |
-| `OCR_SORT_READING_ORDER` | `true` | ordenar líneas por orden de lectura |
-| `OCR_CLASSIFIER` | `rules` | tipo de documento: `rules` · `none` · `ml` · `llm` |
-| `OCR_CLASSIFIER_MIN_SCORE` / `OCR_CLASSIFIER_MIN_CONFIDENCE` | `2.5` / `0.4` | umbrales para asignar un tipo |
-| `OCR_EXTRACTOR` | `rules` | extracción de campos por tipo: `rules` · `none` · `llm` |
-| `DOCUMENT_REDACT_PII` | `false` | enmascarar email/DNI/NIE/IBAN/teléfono/tarjeta en el extracto |
-| `DOCUMENT_TEXT_EXCERPT_CHARS` | `500` | caracteres del texto OCR guardados en `documents.text_excerpt` (`0` = ninguno) |
-| `DOCUMENT_RETENTION_DAYS` | `0` | antigüedad para purgar filas de `documents` (`0` = conservar siempre) |
-| `OCR_SYNC_CACHE_TTL_SECONDS` / `OCR_SYNC_CACHE_MAX_ENTRIES` | `300` / `64` | caché del endpoint síncrono (0 = off) |
-| `OCR_WORKER_INTERVAL_SECONDS` | `2` | frecuencia de sondeo del worker |
-| `OCR_JOB_MAX_ATTEMPTS` | `3` | reintentos antes de marcar el job como `error` |
-| `OCR_JOB_STALE_SECONDS` | `900` | antigüedad para reencolar un job `processing` colgado |
-| `OCR_JOB_RETENTION_DAYS` | `7` | antigüedad para purgar jobs terminados |
-| `OCR_PURGE_INTERVAL_SECONDS` | `3600` | frecuencia de purga en el worker |
-| `OCR_WARMUP_ON_STARTUP` / `OCR_WARMUP_LANGS` | `true` / `OCR_LANG` | precarga de modelos al arranque |
-| `OCR_CALLBACK_TIMEOUT_SECONDS` | `10` | timeout del webhook |
-| `OCR_CALLBACK_ALLOW_PRIVATE` | `false` | permitir callbacks a IPs privadas (solo interno) |
-| `OCR_CALLBACK_ALLOWED_HOSTS` | *(vacío)* | lista blanca de hosts para `callback_url` |
-| `OCR_CALLBACK_SIGNING_SECRET` | *(→ `SECRET_KEY`)* | secreto HMAC para firmar el webhook |
-| `THROTTLE_OCR` | `30/60` | rate‑limit de los endpoints OCR (default; se sobrescribe por `api_client.rate_limit`) |
-| `OCR_DEFAULT_MONTHLY_PAGE_QUOTA` | `0` | cuota mensual de páginas por defecto (`0` = ilimitada; override por `api_client.monthly_page_quota`) |
+| `OCR_LANG` | `es` | default language |
+| `OCR_LANG_AUTODETECT` | `false` | if `lang` is omitted, detect it from the text and re-run |
+| `TESSERACT_CMD` | *(empty)* | path to the `tesseract` binary (empty = on PATH) |
+| `OCR_USE_GPU` | `false` | use GPU (requires `paddlepaddle-gpu`) |
+| `OCR_MODEL_DIR` | `/app/backend/.paddlex` | PaddleOCR/PaddleX model cache |
+| `OCR_PDF_DPI` | `200` | DPI when rasterizing PDFs |
+| `OCR_SYNC_MAX_BYTES` / `OCR_SYNC_MAX_PAGES` | `10000000` / `5` | sync endpoint limits |
+| `OCR_MAX_UPLOAD_BYTES` | `52428800` | upload limit for jobs |
+| `OCR_MAX_IMAGE_MEGAPIXELS` | `40` | pixel cap per page/image (anti-bomb) |
+| `OCR_MAX_CONCURRENCY` | `2` | concurrent OCR inferences (per process) |
+| `OCR_ALLOWED_LANGS` | *(empty)* | allowed languages; empty = PaddleOCR's native set |
+| `OCR_SORT_READING_ORDER` | `true` | sort lines by reading order |
+| `OCR_CLASSIFIER` | `rules` | document type: `rules` · `none` · `ml` · `llm` |
+| `OCR_CLASSIFIER_MIN_SCORE` / `OCR_CLASSIFIER_MIN_CONFIDENCE` | `2.5` / `0.4` | thresholds to assign a type |
+| `OCR_EXTRACTOR` | `rules` | per-type field extraction: `rules` · `none` · `llm` |
+| `DOCUMENT_REDACT_PII` | `false` | mask email/ID/IBAN/phone/card in the stored excerpt |
+| `DOCUMENT_TEXT_EXCERPT_CHARS` | `500` | chars of OCR text stored in `documents.text_excerpt` (`0` = none) |
+| `DOCUMENT_RETENTION_DAYS` | `0` | age to purge `documents` rows (`0` = keep forever) |
+| `OCR_SYNC_CACHE_TTL_SECONDS` / `OCR_SYNC_CACHE_MAX_ENTRIES` | `300` / `64` | sync endpoint cache (0 = off) |
+| `OCR_WORKER_INTERVAL_SECONDS` | `2` | worker poll frequency |
+| `OCR_JOB_MAX_ATTEMPTS` | `3` | retries before marking a job `error` |
+| `OCR_JOB_STALE_SECONDS` | `900` | age to re-queue a stuck `processing` job |
+| `OCR_JOB_RETENTION_DAYS` | `7` | age to purge finished jobs |
+| `OCR_PURGE_INTERVAL_SECONDS` | `3600` | purge frequency in the worker |
+| `OCR_WARMUP_ON_STARTUP` / `OCR_WARMUP_LANGS` | `true` / `OCR_LANG` | model preload on startup |
+| `OCR_CALLBACK_TIMEOUT_SECONDS` | `10` | webhook timeout |
+| `OCR_CALLBACK_ALLOW_PRIVATE` | `false` | allow callbacks to private IPs (internal only) |
+| `OCR_CALLBACK_ALLOWED_HOSTS` | *(empty)* | host allowlist for `callback_url` |
+| `OCR_CALLBACK_SIGNING_SECRET` | *(→ `SECRET_KEY`)* | HMAC secret to sign the webhook |
+| `THROTTLE_OCR` | `30/60` | rate limit for the OCR endpoints (default; overridden by `api_client.rate_limit`) |
+| `OCR_DEFAULT_MONTHLY_PAGE_QUOTA` | `0` | default monthly page quota (`0` = unlimited; overridden by `api_client.monthly_page_quota`) |
 
-## Desarrollo
+## Development
 
-### Calidad de código (backend)
+### Code quality (backend)
 
-Equivalencias con el stack de Laravel:
+Laravel-stack equivalents:
 
-| Laravel | Aquí | Comando |
+| Laravel | Here | Command |
 |---|---|---|
-| Pint (formateador) | `ruff format` | `make format-backend` |
-| PHP_CodeSniffer / lint | `ruff check` | (incluido en `make lint-backend`) |
-| PHPStan (análisis estático) | `mypy` estricto | `make type-check-backend` |
-| — (gate CI) | todo junto | `make check-backend` |
+| Pint (formatter) | `ruff format` | `make format-backend` |
+| PHP_CodeSniffer / lint | `ruff check` | (included in `make lint-backend`) |
+| PHPStan (static analysis) | strict `mypy` | `make type-check-backend` |
+| — (CI gate) | all together | `make check-backend` |
 
-- `make lint-backend` verifica **formato** (`ruff format --check`) **y** lint sin modificar nada.
-- `make lint-backend-fix` aplica formato + autofix de lint.
-- `mypy` corre con `disallow_untyped_defs`, `strict_equality`, `warn_unreachable`,
-  `check_untyped_defs`, `extra_checks` y `disallow_incomplete_defs` sobre `app/`
-  (nivel "PHPStan max"); config en `backend/pyproject.toml`.
-- `make check-backend` = formato + lint + tipos + tests (lo que corre CI).
+- `make lint-backend` checks **formatting** (`ruff format --check`) **and** lint without
+  changing anything.
+- `make lint-backend-fix` applies formatting + lint autofix.
+- `mypy` runs with `disallow_untyped_defs`, `strict_equality`, `warn_unreachable`,
+  `check_untyped_defs`, `extra_checks` and `disallow_incomplete_defs` over `app/`
+  ("PHPStan max" level); config in `backend/pyproject.toml`.
+- `make check-backend` = format + lint + types + tests (what CI runs).
 
 ```bash
-make check-backend       # gate completo del backend
-make test-backend        # pytest (usa OCR_ENGINE=fake automáticamente)
-make format-backend      # aplica el formateo
-make process-ocr         # procesa un lote de jobs pendientes y sale
-make purge-ocr           # purga jobs vencidos y sus archivos
+make check-backend       # full backend gate
+make test-backend        # pytest (uses OCR_ENGINE=fake automatically)
+make format-backend      # apply formatting
+make process-ocr         # process a batch of pending jobs and exit
+make purge-ocr           # purge expired jobs and their files
 make logs-ocr-worker
 ```
 
-Toda la configuración del backend la lee `app/config.py::Settings` (pydantic-settings) de
-la variable de entorno o del `.env`. Para correr el backend **sin Docker** hay una
-plantilla propia con los comandos y valores locales: `backend/.env.example`
-(y `frontend/.env.example` para el frontend).
+All backend config is read by `app/config.py::Settings` (pydantic-settings) from the
+environment or `.env`. To run the backend **without Docker** there's a dedicated template
+with local commands and values: `backend/.env.example` (and `frontend/.env.example` for the
+frontend).
 
-**Config del frontend en runtime**: `GET /api/v1/config` (público) devuelve la config
-pública de la SPA (hoy `app_name`, derivado de `APP_NAME`). El frontend la lee al arrancar
-(`src/app.tsx` → `applyRuntimeConfig`); las `VITE_*` quedan solo como fallback de build.
-Así el nombre de la app se cambia en el `.env` del backend, sin rebuild del frontend.
+**Frontend runtime config**: `GET /api/v1/config` (public) returns the SPA's public config
+(today `app_name`, derived from `APP_NAME`). The frontend reads it on boot
+(`src/app.tsx` → `applyRuntimeConfig`); the `VITE_*` vars are only a build-time fallback. So
+the app name changes in the backend `.env`, with no frontend rebuild.
 
-Arquitectura OCR:
+OCR architecture:
 
-- `app/services/ocr/` — `loader.py` (imagen/PDF → páginas), `engine.py` (`PaddleOcrEngine` /
-  `FakeOcrEngine` + `warmup`), `service.py` (inferencia fuera del event loop), `jobs.py`
-  (lógica común), `callback.py` (webhook firmado + guarda SSRF), `storage.py`.
-- `app/models/ocr_job.py` + `app/repositories/ocr_job.py` — tabla `ocr_jobs` (claim/reclaim/purge).
+- `app/services/ocr/` — `loader.py` (image/PDF → pages), `engine.py` (`PaddleOcrEngine` /
+  `FakeOcrEngine` + `warmup`), `service.py` (inference off the event loop), `jobs.py` (shared
+  logic), `callback.py` (signed webhook + SSRF guard), `storage.py`.
+- `app/models/ocr_job.py` + `app/repositories/ocr_job.py` — `ocr_jobs` table (claim/reclaim/purge).
 - `app/models/document.py` + `app/repositories/document.py` + `app/domain/document/` +
-  `app/routers/documents.py` — tabla `documents` (registro de todo lo procesado por la API).
-- `app/routers/ext_ocr.py` (API externa) y `app/routers/ocr.py` (panel).
+  `app/routers/documents.py` — `documents` table (registry of everything the API processed).
+- `app/routers/ext_ocr.py` (external API) and `app/routers/ocr.py` (panel).
 - `app/models/api_client.py` (`ApiClient` + `ClientUsage`) + `app/repositories/client_usage.py` —
-  cuotas y medición; `app/dependencies.py::require_ocr` aplica scope + rate‑limit + cuota.
-- `app/ocr/worker.py` + `app/ocr/processor.py` — worker de la cola (servicio `ocr-worker`):
-  reclaim de jobs colgados → claim → OCR → callback → purga por retención.
-- `app/services/ocr/langs.py` (validación de idioma), `cache.py` (caché síncrona),
-  `classifier.py` (tipo de documento por reglas; pluggable para ML/LLM más adelante).
+  quotas and metering; `app/dependencies.py::require_ocr` applies scope + rate limit + quota.
+- `app/ocr/worker.py` + `app/ocr/processor.py` — queue worker (`ocr-worker` service): reclaim
+  stuck jobs → claim → OCR → callback → retention purge.
+- `app/services/ocr/langs.py` (language validation), `cache.py` (sync cache), `classifier.py`
+  (rule-based document type; pluggable for ML/LLM later).
 
 ### Readiness
 
-- `GET /api/v1/ocr/ready` → `200` cuando hay al menos un modelo cargado, `503` mientras calienta
-  (útil como *readiness probe*). `GET /api/health` incluye el mismo estado en `ocr.ready`.
+- `GET /api/v1/ocr/ready` → `200` when at least one model is loaded, `503` while warming up
+  (useful as a *readiness probe*). `GET /api/health` includes the same state in `ocr.ready`.
 
-## Observabilidad
+## Observability
 
-- **`GET /metrics`** — formato Prometheus. Métricas: `ocr_requests_total{mode,engine,status}`,
-  `ocr_processing_ms` (histograma), `ocr_cache_events_total{event}`, `ocr_engine_errors_total`,
-  `ocr_callback_total{status}`, `ocr_queue_depth{status}` (muestreada en el scrape),
-  `http_requests_total` / `http_request_duration_seconds`. Sin auth salvo que fijes
-  `METRICS_TOKEN` (entonces exige `Authorization: Bearer <token>`).
-- **Logs** — una línea por evento; `LOG_FORMAT=json` los emite como objeto JSON con
-  `request_id`. `LOG_LEVEL` ajusta el nivel.
-- **`X-Request-ID`** — el middleware genera uno (o propaga el entrante) y lo devuelve en la
-  respuesta; aparece en cada log de esa petición.
-- El **`ocr-worker`** sirve su propio `/metrics` cuando `WORKER_METRICS_PORT` > 0 (lo fija el
-  overlay).
+- **`GET /metrics`** — Prometheus format. Metrics: `ocr_requests_total{mode,engine,status}`,
+  `ocr_processing_ms` (histogram), `ocr_cache_events_total{event}`, `ocr_engine_errors_total`,
+  `ocr_callback_total{status}`, `ocr_queue_depth{status}` (sampled at scrape time),
+  `http_requests_total` / `http_request_duration_seconds`. No auth unless you set
+  `METRICS_TOKEN` (then it requires `Authorization: Bearer <token>`).
+- **Logs** — one line per event; `LOG_FORMAT=json` emits them as a JSON object with
+  `request_id`. `LOG_LEVEL` sets the level.
+- **`X-Request-ID`** — the middleware generates one (or propagates the incoming one) and
+  returns it in the response; it shows up in every log for that request.
+- The **`ocr-worker`** serves its own `/metrics` when `WORKER_METRICS_PORT` > 0 (the overlay
+  sets it).
 
-### Panel Prometheus + Grafana (overlay opcional)
+### Prometheus + Grafana panel (optional overlay)
 
-Nada de esto hace falta para correr la app — en un despliegue real tu Prometheus scrapea
-`backend:8000/metrics` directamente.
+None of this is needed to run the app — in a real deployment your Prometheus scrapes
+`backend:8000/metrics` directly.
 
 ```bash
 make observability        # = compose -f compose.dev.yml -f compose.observability.yml up -d
-make observability-down    # para el panel (sin borrar datos)
+make observability-down    # stop the panel (data kept)
 ```
 
-| | URL | Acceso |
+| | URL | Access |
 |---|---|---|
-| **Grafana** | http://localhost:3001 | anónimo = *Viewer* (sin login); editar: `admin` / `${GRAFANA_PASSWORD:-admin}` |
+| **Grafana** | http://localhost:3001 | anonymous = *Viewer* (no login); to edit: `admin` / `${GRAFANA_PASSWORD:-admin}` |
 | **Prometheus** | http://localhost:9090 | — |
 
-- **Grafana** → *Dashboards → "Ocrer — OCR overview"** (directo: `http://localhost:3001/d/ocrer-overview`).
-  Ya viene provisionado; ajusta el rango de tiempo arriba a la derecha (refresco cada 30 s).
-- **Prometheus** → *Status → Target health*: `ocrer-backend` y `ocrer-worker` deben estar `UP`.
-  En *Graph* puedes probar PromQL:
+- **Grafana** → *Dashboards → "Ocrer — OCR overview"** (direct: `http://localhost:3001/d/ocrer-overview`).
+  It's provisioned already; adjust the time range top-right (30 s refresh).
+- **Prometheus** → *Status → Target health*: `ocrer-backend` and `ocrer-worker` should be `UP`.
+  In *Graph* you can try PromQL:
   ```promql
   sum by (mode,status) (rate(ocr_requests_total[5m]))
   histogram_quantile(0.95, sum by (le,mode) (rate(ocr_processing_ms_bucket[5m])))
   ocr_queue_depth
   ```
-- En una caja de dev con poco tráfico los paneles salen planos hasta que lanzas peticiones
-  (`bash scratchpad/api_smoke.sh`, el playground `/admin/ocr`, o navegando por el admin).
-  «Cache hit-rate 0%» y «Callbacks — No data» son normales si no repites documentos ni usas
-  `callback_url`.
-- Puertos configurables con `GRAFANA_PORT` / `PROMETHEUS_PORT`.
+- On a quiet dev box the panels stay flat until you send traffic (`bash scratchpad/api_smoke.sh`,
+  the `/admin/ocr` playground, or just browsing the admin). "Cache hit-rate 0%" and
+  "Callbacks — No data" are normal if you don't resend documents or use `callback_url`.
+- Ports configurable with `GRAFANA_PORT` / `PROMETHEUS_PORT`.
 
-## Seguridad
+## Security
 
-Cubierto de serie:
+Covered out of the box:
 
-- **Auth**: passwords con bcrypt; JWT de panel firmado (valida `iss`/`aud`/`exp`/`token_type`),
-  cookies `httponly` + `SameSite` + `Secure` (prod). **Bloqueo de cuenta** tras
-  `LOGIN_MAX_ATTEMPTS` fallos durante `LOGIN_LOCKOUT_MINUTES`.
-- **CSRF**: token firmado obligatorio en métodos mutantes del panel; se salta en `/api/ext/*`
-  (Bearer no es CSRF-able).
-- **API externa**: tokens y secretos guardados solo como hash SHA-256; `verify_secret` en
-  tiempo constante; refresh con rotación + `SELECT … FOR UPDATE`; `rotate` invalida todo.
-- **SSRF de callbacks**: allowlist de esquema/host, bloqueo de IP privada/reservada, sin
-  redirects, y **la petición se fija a la IP ya validada** (`_PinnedTransport`) → cierra el
-  DNS rebinding. Webhook firmado con HMAC-SHA256 + timestamp.
-- **Entrada**: guardas de `Content-Length` + tamaño, allowlist MIME, tope anti-bomba de
-  megapíxeles, y en los `.zip` de lote: cap por entrada, total y ratio de compresión.
-- **Rate limit / cuotas** por user / cliente / IP real (uvicorn `--proxy-headers`).
-- **Cabeceras HTTP** en nginx: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
-  `Permissions-Policy`, `CSP` y `HSTS` (prod); `server_tokens off`.
-- **Log de auditoría**: `audit_events` registra logins (ok/fallo/bloqueo), cambios de
-  usuarios/roles y ciclo de vida de clientes API. `GET /api/v1/audit` (permiso `audit.view`).
-- **OpenAPI** desactivable en prod (`DOCS_ENABLED=false`); `CORS_ALLOWED_ORIGINS` rechaza `*`.
+- **Auth**: bcrypt passwords; signed panel JWT (validates `iss`/`aud`/`exp`/`token_type`),
+  `httponly` + `SameSite` + `Secure` (prod) cookies. **Account lockout** after
+  `LOGIN_MAX_ATTEMPTS` failures for `LOGIN_LOCKOUT_MINUTES`.
+- **CSRF**: signed token required on the panel's mutating methods; skipped on `/api/ext/*`
+  (Bearer isn't CSRF-able).
+- **External API**: tokens and secrets stored only as SHA-256 hashes; constant-time
+  `verify_secret`; refresh with rotation + `SELECT … FOR UPDATE`; `rotate` invalidates
+  everything.
+- **Callback SSRF**: scheme/host allowlist, private/reserved IP blocking, no redirects, and
+  **the request is pinned to the vetted IP** (`_PinnedTransport`) → closes DNS rebinding.
+  Webhook signed with HMAC-SHA256 + timestamp.
+- **Input**: `Content-Length` + size guards, MIME allowlist, megapixel anti-bomb cap, and for
+  batch `.zip`s: per-entry, total and compression-ratio caps.
+- **Rate limit / quotas** per user / client / real IP (uvicorn `--proxy-headers`).
+- **HTTP headers** in nginx: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
+  `Permissions-Policy`, `CSP` and `HSTS` (prod); `server_tokens off`.
+- **Audit log**: `audit_events` records logins (ok/fail/lock), user/role changes and API
+  client lifecycle. `GET /api/v1/audit` (permission `audit.view`).
+- **OpenAPI** disableable in prod (`DOCS_ENABLED=false`); `CORS_ALLOWED_ORIGINS` rejects `*`.
 
-Pendiente / responsabilidad del despliegue:
+Left to the deployment:
 
-- **TLS** lo termina algo por delante (LB / ingress / nginx con certificado). El `nginx` de
-  `compose.yml` escucha en `:80`; ponle HTTPS delante y el `HSTS` que ya emite cobra sentido.
-- Sin 2FA. Sin política de contraseñas configurable. Sin rotación de `SECRET_KEY` multi-clave.
-- El *egress* de red sigue siendo la defensa de fondo para callbacks en entornos hostiles.
+- **TLS** is terminated in front (LB / ingress / nginx with a cert). `compose.yml`'s `nginx`
+  listens on `:80`; put HTTPS in front and the `HSTS` it already emits makes sense.
+- No 2FA. No configurable password policy. No multi-key `SECRET_KEY` rotation.
+- Network *egress* policy is still the backstop for callbacks in hostile environments.
 
-## Limitaciones conocidas
+## Known limitations
 
-- **Storage por defecto en disco**: `STORAGE_BACKEND=local` comparte el volumen
-  `media_data` entre backend y worker. Para multi-nodo, `STORAGE_BACKEND=s3` (extra `s3`).
-- **Dead-letter de callbacks sin re-alertas**: tras agotar `OCR_CALLBACK_MAX_ATTEMPTS` el
-  job queda marcado pero no notifica a nadie — hay que consultarlo (`?callback=failed`) o
-  reencolarlo con `redeliver`.
-- **paddleocr pin en 2.x**: `engine.py` ya soporta la API 3.x, pero paddle 3.x falla en
-  CPU bajo emulación; subir el pin y verificar en CI x86 es el paso pendiente.
-- **`OCR_MAX_CONCURRENCY` es por proceso**: con N réplicas del worker el paralelismo real es
-  N × ese valor. Para un tope global haría falta un semáforo en Redis/BD.
-- **Rate‑limit y cuota son por proceso/ventana fija en BD**: el contador de rate‑limit es una
-  ventana fija (`rate_limit_counters`); la cuota mensual se cuenta por `page_count` y no se
-  factura cuando el OCR falla antes de contar páginas (comportamiento deseado).
+- **Default on-disk storage**: `STORAGE_BACKEND=local` shares the `media_data` volume between
+  backend and worker. For multi-node, `STORAGE_BACKEND=s3` (extra `s3`).
+- **Callback dead-letter without re-alerts**: after `OCR_CALLBACK_MAX_ATTEMPTS` the job is
+  flagged but nobody is notified — you must query it (`?callback=failed`) or re-queue it with
+  `redeliver`.
+- **paddleocr pinned to 2.x**: `engine.py` already supports the 3.x API, but paddle 3.x fails
+  on CPU under emulation; bumping the pin and verifying on x86 CI is the pending step.
+- **`OCR_MAX_CONCURRENCY` is per process**: with N worker replicas the real parallelism is
+  N × that value. A global cap would need a semaphore in Redis/DB.
+- **Rate limit and quota are per-process / fixed-window in DB**: the rate-limit counter is a
+  fixed window (`rate_limit_counters`); the monthly quota is counted by `page_count` and is
+  not billed when OCR fails before pages are counted (intended behavior).
 
-## Posibles mejoras (roadmap)
+## Roadmap
 
-Ordenadas por relación valor/esfuerzo:
+Ordered by value/effort:
 
-1. *(hecho)* **Extracción de campos por tipo** (`OCR_EXTRACTOR=rules`) — falta un
-   backend `llm` con proveedor real.
-2. *(hecho)* **Storage enchufable** `STORAGE_BACKEND=local|s3` — `S3Storage` (boto3, extra
-   `s3`) desacopla el worker del disco compartido.
-3. *(hecho)* **Observabilidad** — `GET /metrics` Prometheus + logs por línea
-   (`LOG_FORMAT=json`) + `X-Request-ID`. Overlay opcional Prometheus/Grafana.
-4. *(hecho)* **Dead-letter de callbacks** — backoff + `redeliver` + filtro `?callback=`.
-5. *(hecho)* **Cuotas y medición por cliente** — `rate_limit` y `monthly_page_quota` por
-   `api_client`, tabla `client_usage`, `GET /usage`, cabeceras `X-Quota-*`.
-6. *(hecho)* **Formatos de salida** `?format=text|hocr|alto|pdf` (el `pdf` de un job
-   re-lee el original vía el storage).
-7. *(hecho)* **Motor alternativo Tesseract** (`OCR_ENGINE=tesseract`); queda abrir un
-   adaptador a un OCR cloud tras la misma interfaz `OcrEngine`.
-8. *(hecho)* **Detección automática de idioma** (`OCR_LANG_AUTODETECT`).
-9. *(hecho)* **Redacción de PII** (`DOCUMENT_REDACT_PII`).
-10. *(hecho)* **Endpoint batch** `POST /jobs:batch` + `GET /batches/{id}`.
-11. *(hecho)* **Rotación de secreto** de `api_client` (`POST .../rotate`) y cabeceras
-    `X-RateLimit-*` en todas las respuestas OCR.
-12. *(parcial)* **Clasificador ML/LLM** — `OCR_CLASSIFIER=ml` (TF‑IDF + `scripts/
-    train_classifier.py`) y `llm` (interfaz + stub) ya existen; falta el proveedor LLM real.
-13. *(bloqueado)* **`paddleocr` 3.x / PP‑OCRv5** — wrapper listo; subir el pin y verificar
-    en CI x86 (3.x rompe en CPU bajo emulación).
+1. *(done)* **Per-type field extraction** (`OCR_EXTRACTOR=rules`) — an `llm` backend with a
+   real provider is missing.
+2. *(done)* **Pluggable storage** `STORAGE_BACKEND=local|s3` — `S3Storage` (boto3, extra
+   `s3`) decouples the worker from the shared disk.
+3. *(done)* **Observability** — `GET /metrics` Prometheus + per-line logs (`LOG_FORMAT=json`)
+   + `X-Request-ID`. Optional Prometheus/Grafana overlay.
+4. *(done)* **Callback dead-letter** — backoff + `redeliver` + `?callback=` filter.
+5. *(done)* **Per-client quotas & metering** — `rate_limit` and `monthly_page_quota` per
+   `api_client`, `client_usage` table, `GET /usage`, `X-Quota-*` headers.
+6. *(done)* **Output formats** `?format=text|hocr|alto|pdf` (a job's `pdf` re-reads the
+   original via the storage backend).
+7. *(done)* **Tesseract engine** (`OCR_ENGINE=tesseract`); a cloud-OCR adapter behind the
+   same `OcrEngine` interface is still open.
+8. *(done)* **Automatic language detection** (`OCR_LANG_AUTODETECT`).
+9. *(done)* **PII redaction** (`DOCUMENT_REDACT_PII`).
+10. *(done)* **Batch endpoint** `POST /jobs:batch` + `GET /batches/{id}`.
+11. *(done)* **`api_client` secret rotation** (`POST .../rotate`) and `X-RateLimit-*` headers
+    on every OCR response.
+12. *(partial)* **ML/LLM classifier** — `OCR_CLASSIFIER=ml` (TF‑IDF +
+    `scripts/train_classifier.py`) and `llm` (interface + stub) exist; a real LLM provider is
+    missing.
+13. *(blocked)* **`paddleocr` 3.x / PP‑OCRv5** — wrapper ready; bump the pin and verify on
+    x86 CI (3.x breaks on CPU under emulation).
