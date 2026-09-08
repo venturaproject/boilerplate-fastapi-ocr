@@ -43,6 +43,8 @@ services:
       APP_NAME: ${APP_NAME:-Ocrer}
       APP_URL: ${APP_URL:-http://localhost}
       DOCS_ENABLED: ${DOCS_ENABLED:-true}
+      LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
+      LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES:-15}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-password}
       ADMIN_NAME: ${ADMIN_NAME:-Admin}

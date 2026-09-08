@@ -379,11 +379,38 @@ Arquitectura OCR:
 - `GET /api/v1/ocr/ready` → `200` cuando hay al menos un modelo cargado, `503` mientras calienta
   (útil como *readiness probe*). `GET /api/health` incluye el mismo estado en `ocr.ready`.
 
+## Seguridad
+
+Cubierto de serie:
+
+- **Auth**: passwords con bcrypt; JWT de panel firmado (valida `iss`/`aud`/`exp`/`token_type`),
+  cookies `httponly` + `SameSite` + `Secure` (prod). **Bloqueo de cuenta** tras
+  `LOGIN_MAX_ATTEMPTS` fallos durante `LOGIN_LOCKOUT_MINUTES`.
+- **CSRF**: token firmado obligatorio en métodos mutantes del panel; se salta en `/api/ext/*`
+  (Bearer no es CSRF-able).
+- **API externa**: tokens y secretos guardados solo como hash SHA-256; `verify_secret` en
+  tiempo constante; refresh con rotación + `SELECT … FOR UPDATE`; `rotate` invalida todo.
+- **SSRF de callbacks**: allowlist de esquema/host, bloqueo de IP privada/reservada, sin
+  redirects, y **la petición se fija a la IP ya validada** (`_PinnedTransport`) → cierra el
+  DNS rebinding. Webhook firmado con HMAC-SHA256 + timestamp.
+- **Entrada**: guardas de `Content-Length` + tamaño, allowlist MIME, tope anti-bomba de
+  megapíxeles, y en los `.zip` de lote: cap por entrada, total y ratio de compresión.
+- **Rate limit / cuotas** por user / cliente / IP real (uvicorn `--proxy-headers`).
+- **Cabeceras HTTP** en nginx: `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`,
+  `Permissions-Policy`, `CSP` y `HSTS` (prod); `server_tokens off`.
+- **Log de auditoría**: `audit_events` registra logins (ok/fallo/bloqueo), cambios de
+  usuarios/roles y ciclo de vida de clientes API. `GET /api/v1/audit` (permiso `audit.view`).
+- **OpenAPI** desactivable en prod (`DOCS_ENABLED=false`); `CORS_ALLOWED_ORIGINS` rechaza `*`.
+
+Pendiente / responsabilidad del despliegue:
+
+- **TLS** lo termina algo por delante (LB / ingress / nginx con certificado). El `nginx` de
+  `compose.yml` escucha en `:80`; ponle HTTPS delante y el `HSTS` que ya emite cobra sentido.
+- Sin 2FA. Sin política de contraseñas configurable. Sin rotación de `SECRET_KEY` multi-clave.
+- El *egress* de red sigue siendo la defensa de fondo para callbacks en entornos hostiles.
+
 ## Limitaciones conocidas
 
-- **DNS rebinding**: el guarda SSRF de callbacks resuelve el host y luego httpx vuelve a
-  resolver al conectar. Cierre completo = transport de httpx con IP fijada. Mitígalo con
-  política de egress de red en entornos hostiles.
 - **Storage por defecto en disco**: `STORAGE_BACKEND=local` comparte el volumen
   `media_data` entre backend y worker. Para multi-nodo, `STORAGE_BACKEND=s3` (extra `s3`).
 - **Dead-letter de callbacks sin re-alertas**: tras agotar `OCR_CALLBACK_MAX_ATTEMPTS` el

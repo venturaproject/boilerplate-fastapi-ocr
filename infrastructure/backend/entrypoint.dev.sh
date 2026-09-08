@@ -22,4 +22,5 @@ echo "Running seed..."
 uv run python seed.py
 
 echo "Starting dev server..."
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload \
+    --proxy-headers --forwarded-allow-ips '*'
