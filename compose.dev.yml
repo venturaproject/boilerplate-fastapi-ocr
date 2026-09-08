@@ -181,6 +181,7 @@ services:
       dockerfile: ../infrastructure/frontend/Dockerfile
     command: sh -c "pnpm install && pnpm dev -- --host"
     environment:
+      VITE_APP_NAME: ${VITE_APP_NAME:-Ocrer}
       VITE_BACKEND_URL: http://backend:8000
       VITE_PUBLIC_API_URL: ""
     volumes:
