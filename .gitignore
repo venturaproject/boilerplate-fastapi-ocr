@@ -20,6 +20,9 @@ backend/.paddlex/
 backend/.paddleocr/
 backend/media/
 !backend/media/.gitkeep
+# stray test artifacts (the ./backend mount can pick these up)
+backend/*.pdf
+backend/*.png
 
 # Node (frontend)
 **/node_modules/
