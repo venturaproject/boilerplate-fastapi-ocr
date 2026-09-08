@@ -393,15 +393,35 @@ Arquitectura OCR:
 - El **`ocr-worker`** sirve su propio `/metrics` cuando `WORKER_METRICS_PORT` > 0 (lo fija el
   overlay).
 
-**Overlay opcional Prometheus + Grafana** (nada de esto hace falta para correr la app):
+### Panel Prometheus + Grafana (overlay opcional)
+
+Nada de esto hace falta para correr la app — en un despliegue real tu Prometheus scrapea
+`backend:8000/metrics` directamente.
 
 ```bash
-docker compose -f compose.dev.yml -f compose.observability.yml up -d
-#  Prometheus  http://localhost:9090
-#  Grafana     http://localhost:3001   (anónimo = Viewer)  → dashboard "Ocrer — OCR overview"
+make observability        # = compose -f compose.dev.yml -f compose.observability.yml up -d
+make observability-down    # para el panel (sin borrar datos)
 ```
 
-En un despliegue real, tu Prometheus scrapea `backend:8000/metrics` directamente.
+| | URL | Acceso |
+|---|---|---|
+| **Grafana** | http://localhost:3001 | anónimo = *Viewer* (sin login); editar: `admin` / `${GRAFANA_PASSWORD:-admin}` |
+| **Prometheus** | http://localhost:9090 | — |
+
+- **Grafana** → *Dashboards → "Ocrer — OCR overview"** (directo: `http://localhost:3001/d/ocrer-overview`).
+  Ya viene provisionado; ajusta el rango de tiempo arriba a la derecha (refresco cada 30 s).
+- **Prometheus** → *Status → Target health*: `ocrer-backend` y `ocrer-worker` deben estar `UP`.
+  En *Graph* puedes probar PromQL:
+  ```promql
+  sum by (mode,status) (rate(ocr_requests_total[5m]))
+  histogram_quantile(0.95, sum by (le,mode) (rate(ocr_processing_ms_bucket[5m])))
+  ocr_queue_depth
+  ```
+- En una caja de dev con poco tráfico los paneles salen planos hasta que lanzas peticiones
+  (`bash scratchpad/api_smoke.sh`, el playground `/admin/ocr`, o navegando por el admin).
+  «Cache hit-rate 0%» y «Callbacks — No data» son normales si no repites documentos ni usas
+  `callback_url`.
+- Puertos configurables con `GRAFANA_PORT` / `PROMETHEUS_PORT`.
 
 ## Seguridad
 

@@ -1,13 +1,28 @@
-# backend/ and frontend/ are their own git repositories — this root repo
-# only versions the infra / orchestration files.
-/backend/
-/frontend/
-
-# Env
+# Env (backend/ and frontend/ have their own .gitignore too)
 .env
+**/.env
 !.env.example
+!**/.env.example
 
 # Editors / OS
 .DS_Store
 .idea/
 .vscode/
+
+# Python (backend)
+**/__pycache__/
+*.py[cod]
+**/.venv/
+**/.ruff_cache/
+**/.mypy_cache/
+**/.pytest_cache/
+backend/.paddlex/
+backend/.paddleocr/
+backend/media/
+!backend/media/.gitkeep
+
+# Node (frontend)
+**/node_modules/
+**/.pnpm-store/
+frontend/dist/
+frontend/.vite/

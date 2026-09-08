@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Env
+.env
+!.env.example
+
+# Media / uploads / OCR storage
+media/
+!media/.gitkeep
+
+# PaddleOCR / PaddleX model cache
+.paddlex/
+.paddleocr/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

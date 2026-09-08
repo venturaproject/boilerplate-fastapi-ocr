@@ -1,0 +1,114 @@
+[project]
+name = "boilerplate-fastapi-ocr"
+version = "0.1.0"
+description = "FastAPI OCR API powered by PaddleOCR — sync endpoint + async jobs, Bearer-token external API"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "pydantic[email]>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "email-validator>=2.0.0",
+    "PyJWT>=2.10.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.18",
+    "aiofiles>=24.1.0",
+    "itsdangerous>=2.2.0",
+    "python-decouple>=3.8",
+    "httpx>=0.28.0",
+    "pillow>=10.4.0",
+    "pymupdf>=1.24.0",
+    "numpy>=1.26.0",
+    "reportlab>=4.2.0",  # searchable-PDF output format
+    "prometheus-client>=0.21.0",  # GET /metrics
+]
+
+[project.optional-dependencies]
+# OCR engine — heavy (paddlepaddle ~1 GB). Installed inside the container image.
+# For local dev / CI without it, set OCR_ENGINE=fake.
+paddle = [
+    # NOTE: engine.py handles the 3.x API, but the pin stays on 2.x until PP-OCRv5
+    # is verified on real x86 CI (3.x's oneDNN/PIR CPU path is broken under
+    # emulation). Bump to `paddleocr>=3` there.
+    "paddleocr>=2.9.0,<3.0.0",
+    "paddlepaddle>=2.6.0,<3.0.0",
+    "setuptools>=70.0.0",  # paddlepaddle imports it at runtime (cpp_extension)
+]
+# Lightweight alternative engine — set OCR_ENGINE=tesseract. Needs the
+# `tesseract-ocr` binary + language packs (installed in the image).
+tesseract = [
+    "pytesseract>=0.3.13",
+]
+# ML document classifier (OCR_CLASSIFIER=ml). Train with scripts/train_classifier.py.
+ml = [
+    "scikit-learn>=1.5.0",
+    "joblib>=1.4.0",
+]
+# S3 / S3-compatible object storage for uploads (STORAGE_BACKEND=s3).
+s3 = [
+    "boto3>=1.35.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.28.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = ["migrations", ".venv"]
+
+[tool.ruff.format]
+# Formateo opinado tipo "Pint": `make format-backend` aplica, `make lint-backend` verifica.
+docstring-code-format = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
+    "SIM",
+    "RUF",
+]
+ignore = [
+    "E501",
+    "B008",
+    "SIM108",
+    "RUF012",
+]
+
+[tool.mypy]
+# Análisis estático estricto tipo "PHPStan level max" sobre app/.
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+strict_equality = true
+extra_checks = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+warn_return_any = false
+no_implicit_optional = true
