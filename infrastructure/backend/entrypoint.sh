@@ -19,4 +19,4 @@ echo "Starting server..."
 # real client IP (rate-limit buckets, logs). Safe because the backend port is
 # never published — nginx is the only ingress.
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 \
-    --proxy-headers --forwarded-allow-ips '*'
+    --no-access-log --proxy-headers --forwarded-allow-ips '*'

@@ -1,0 +1,47 @@
+# Opt-in monitoring overlay: Prometheus scrapes the backend (and the worker's
+# own /metrics), Grafana renders a starter dashboard. Nothing here is needed to
+# run the app — in real deployments you scrape backend:8000/metrics from your
+# existing monitoring.
+#
+#   docker compose -f compose.dev.yml -f compose.observability.yml up -d
+#   # or:  -f compose.yml -f compose.observability.yml
+#
+#   Prometheus  http://localhost:9090
+#   Grafana     http://localhost:3001   (anónimo = Viewer; admin / ${GRAFANA_PASSWORD:-admin})
+
+services:
+  ocr-worker:
+    environment:
+      WORKER_METRICS_PORT: 9100
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - backend
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:

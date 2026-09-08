@@ -379,6 +379,30 @@ Arquitectura OCR:
 - `GET /api/v1/ocr/ready` → `200` cuando hay al menos un modelo cargado, `503` mientras calienta
   (útil como *readiness probe*). `GET /api/health` incluye el mismo estado en `ocr.ready`.
 
+## Observabilidad
+
+- **`GET /metrics`** — formato Prometheus. Métricas: `ocr_requests_total{mode,engine,status}`,
+  `ocr_processing_ms` (histograma), `ocr_cache_events_total{event}`, `ocr_engine_errors_total`,
+  `ocr_callback_total{status}`, `ocr_queue_depth{status}` (muestreada en el scrape),
+  `http_requests_total` / `http_request_duration_seconds`. Sin auth salvo que fijes
+  `METRICS_TOKEN` (entonces exige `Authorization: Bearer <token>`).
+- **Logs** — una línea por evento; `LOG_FORMAT=json` los emite como objeto JSON con
+  `request_id`. `LOG_LEVEL` ajusta el nivel.
+- **`X-Request-ID`** — el middleware genera uno (o propaga el entrante) y lo devuelve en la
+  respuesta; aparece en cada log de esa petición.
+- El **`ocr-worker`** sirve su propio `/metrics` cuando `WORKER_METRICS_PORT` > 0 (lo fija el
+  overlay).
+
+**Overlay opcional Prometheus + Grafana** (nada de esto hace falta para correr la app):
+
+```bash
+docker compose -f compose.dev.yml -f compose.observability.yml up -d
+#  Prometheus  http://localhost:9090
+#  Grafana     http://localhost:3001   (anónimo = Viewer)  → dashboard "Ocrer — OCR overview"
+```
+
+En un despliegue real, tu Prometheus scrapea `backend:8000/metrics` directamente.
+
 ## Seguridad
 
 Cubierto de serie:
@@ -432,8 +456,8 @@ Ordenadas por relación valor/esfuerzo:
    backend `llm` con proveedor real.
 2. *(hecho)* **Storage enchufable** `STORAGE_BACKEND=local|s3` — `S3Storage` (boto3, extra
    `s3`) desacopla el worker del disco compartido.
-3. **Observabilidad** — logs JSON estructurados + `/metrics` Prometheus (histograma de
-   latencia OCR, profundidad de cola, hit‑rate de caché, errores de motor).
+3. *(hecho)* **Observabilidad** — `GET /metrics` Prometheus + logs por línea
+   (`LOG_FORMAT=json`) + `X-Request-ID`. Overlay opcional Prometheus/Grafana.
 4. *(hecho)* **Dead-letter de callbacks** — backoff + `redeliver` + filtro `?callback=`.
 5. *(hecho)* **Cuotas y medición por cliente** — `rate_limit` y `monthly_page_quota` por
    `api_client`, tabla `client_usage`, `GET /usage`, cabeceras `X-Quota-*`.

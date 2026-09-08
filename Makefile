@@ -4,6 +4,7 @@
         process-outbox process-inbox process-ocr purge-ocr test-backend \
         lint tsc \
         format-backend lint-backend lint-backend-fix type-check-backend check-backend \
+        observability observability-down \
         install-frontend \
         clean-volumes help
 
@@ -100,6 +101,12 @@ type-check-backend: ## Mypy (análisis estático estricto, tipo `phpstan`)
 	$(BE) uv run mypy app/
 
 check-backend: lint-backend type-check-backend test-backend ## Gate completo del backend (formato + lint + tipos + tests)
+
+observability: ## Levanta el overlay Prometheus + Grafana (http://localhost:3001)
+	docker compose -f compose.dev.yml -f compose.observability.yml up -d prometheus grafana ocr-worker
+
+observability-down: ## Para el overlay de monitorización
+	docker compose -f compose.dev.yml -f compose.observability.yml stop prometheus grafana
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
 
