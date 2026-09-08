@@ -334,7 +334,13 @@ make logs-ocr-worker
 
 Toda la configuración del backend la lee `app/config.py::Settings` (pydantic-settings) de
 la variable de entorno o del `.env`. Para correr el backend **sin Docker** hay una
-plantilla propia con los comandos y valores locales: `backend/.env.example`.
+plantilla propia con los comandos y valores locales: `backend/.env.example`
+(y `frontend/.env.example` para el frontend).
+
+**Config del frontend en runtime**: `GET /api/v1/config` (público) devuelve la config
+pública de la SPA (hoy `app_name`, derivado de `APP_NAME`). El frontend la lee al arrancar
+(`src/app.tsx` → `applyRuntimeConfig`); las `VITE_*` quedan solo como fallback de build.
+Así el nombre de la app se cambia en el `.env` del backend, sin rebuild del frontend.
 
 Arquitectura OCR:
 
