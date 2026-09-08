@@ -20,6 +20,8 @@ extension points.
   queue with signed webhooks, dead-letter and redelivery.
 - **Pluggable OCR engine** — PaddleOCR (default), Tesseract, or a deterministic `fake` stub
   for CI; automatic language detection.
+- **Text-first PDFs** — digital PDFs are read straight from their embedded text layer
+  (exact, no OCR); scanned pages fall back to rasterize + OCR, per page.
 - **Output formats** — JSON, plain text, hOCR, ALTO v3 XML, or a **searchable PDF**
   (image + invisible text layer).
 - **Document intelligence** — rule-based type classification (invoice, CV, payslip, contract…)
@@ -185,6 +187,11 @@ curl -X POST http://localhost:8087/api/ext/ocr \
 }
 ```
 
+- **PDFs** — a page with a real text layer (digital PDF) is read straight from it: exact
+  text, `confidence: 1.0`, no OCR. Pages with little/no text (scanned) are rasterized and
+  OCR'd. `engine` in the response reads `pdf-text`, or `<engine>+pdf-text` for a mixed
+  document. Disable with `OCR_PDF_TEXT_LAYER=false`; the threshold is
+  `OCR_PDF_TEXT_MIN_CHARS`.
 - **Output format** with `?format=` — `json` (default) · `text` · `hocr` · `alto` · `pdf`
   (searchable PDF = image + invisible text layer). Also on
   `GET /api/ext/ocr/jobs/{id}?format=` (the `pdf` re-reads the original via the storage
@@ -372,7 +379,9 @@ In the panel: **Users → API Clients** ("Limits & usage" column, edit limits, "
 | `TESSERACT_CMD` | *(empty)* | path to the `tesseract` binary (empty = on PATH) |
 | `OCR_USE_GPU` | `false` | use GPU (requires `paddlepaddle-gpu`) |
 | `OCR_MODEL_DIR` | `/app/backend/.paddlex` | PaddleOCR/PaddleX model cache |
-| `OCR_PDF_DPI` | `200` | DPI when rasterizing PDFs |
+| `OCR_PDF_DPI` | `200` | DPI when rasterizing PDF pages that need OCR |
+| `OCR_PDF_TEXT_LAYER` | `true` | read the embedded text layer of digital PDFs instead of OCR'ing a render |
+| `OCR_PDF_TEXT_MIN_CHARS` | `16` | a PDF page with less real text than this is treated as scanned |
 | `OCR_SYNC_MAX_BYTES` / `OCR_SYNC_MAX_PAGES` | `10000000` / `5` | sync endpoint limits |
 | `OCR_MAX_UPLOAD_BYTES` | `52428800` | upload limit for jobs |
 | `OCR_MAX_IMAGE_MEGAPIXELS` | `40` | pixel cap per page/image (anti-bomb) |
@@ -570,3 +579,5 @@ Ordered by value/effort:
     missing.
 13. *(blocked)* **`paddleocr` 3.x / PP‑OCRv5** — wrapper ready; bump the pin and verify on
     x86 CI (3.x breaks on CPU under emulation).
+14. *(done)* **Text-first PDFs** (`OCR_PDF_TEXT_LAYER`) — read the embedded text layer of
+    digital PDFs, OCR only scanned pages; hybrid per-page.

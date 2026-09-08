@@ -17,7 +17,8 @@ from app.services.ocr.classifier import classify
 from app.services.ocr.engine import OcrEngine, get_engine
 from app.services.ocr.extractor import extract
 from app.services.ocr.langs import allowed_langs, detect_lang
-from app.services.ocr.loader import PageImage, load_pages
+from app.services.ocr.loader import PDF_CONTENT_TYPES, PageImage, load_pages, normalize_content_type
+from app.services.ocr.pdf_text import extract_pdf_pages
 from app.services.ocr.storage import read_file
 
 logger = logging.getLogger("app.services.ocr")
@@ -52,25 +53,49 @@ def _process_sync(
         assert path is not None, "run_ocr needs either data or path"
         data = read_file(path)  # blocking read, but we're already in a worker thread
 
-    pages = load_pages(data, content_type, filename=filename, max_pages=max_pages)
-
     engine = get_engine()
-    ocr_pages = _recognize(engine, pages, lang)
     lang_detected = False
+    is_pdf = normalize_content_type(content_type, filename) in PDF_CONTENT_TYPES
 
-    # Language auto-detection: if the caller didn't pin `lang`, guess it from the
-    # text and re-run once with the detected language.
-    if not lang_explicit and settings.ocr_lang_autodetect and engine.name != "fake":
-        guessed = detect_lang("\n".join(p.text for p in ocr_pages))
-        if guessed and guessed != lang and guessed in allowed_langs():
-            logger.info("Idioma detectado %s (era %s); reintentando", guessed, lang)
-            ocr_pages = _recognize(engine, pages, guessed)
-            lang, lang_detected = guessed, True
+    text_pages: list[OcrPage | None] = []
+    if is_pdf and settings.ocr_pdf_text_layer:
+        text_pages = extract_pdf_pages(data, max_pages=max_pages)
+
+    if text_pages and any(tp is not None for tp in text_pages):
+        # Text-first: use the embedded text layer, OCR only the pages without one.
+        need_ocr = [i for i, tp in enumerate(text_pages) if tp is None]
+        engine_name = "pdf-text"
+        ocr_of_images: list[OcrPage] = []
+        if need_ocr:
+            images = load_pages(data, content_type, filename=filename, max_pages=max_pages)
+            to_ocr = [images[i] for i in need_ocr]
+            ocr_of_images = _recognize(engine, to_ocr, lang)
+            engine_name = f"{engine.name}+pdf-text"
+            if not lang_explicit and settings.ocr_lang_autodetect and engine.name != "fake":
+                guessed = detect_lang("\n".join(p.text for p in ocr_of_images))
+                if guessed and guessed != lang and guessed in allowed_langs():
+                    logger.info("Idioma detectado %s (era %s); reintentando", guessed, lang)
+                    ocr_of_images = _recognize(engine, to_ocr, guessed)
+                    lang, lang_detected = guessed, True
+        it = iter(ocr_of_images)
+        ocr_pages = [tp if tp is not None else next(it) for tp in text_pages]
+    else:
+        pages = load_pages(data, content_type, filename=filename, max_pages=max_pages)
+        engine_name = engine.name
+        ocr_pages = _recognize(engine, pages, lang)
+        # Language auto-detection: if the caller didn't pin `lang`, guess it from
+        # the text and re-run once with the detected language.
+        if not lang_explicit and settings.ocr_lang_autodetect and engine.name != "fake":
+            guessed = detect_lang("\n".join(p.text for p in ocr_pages))
+            if guessed and guessed != lang and guessed in allowed_langs():
+                logger.info("Idioma detectado %s (era %s); reintentando", guessed, lang)
+                ocr_pages = _recognize(engine, pages, guessed)
+                lang, lang_detected = guessed, True
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     full_text = "\n\n".join(p.text for p in ocr_pages if p.text)
     result = OcrResult(
-        engine=engine.name,
+        engine=engine_name,
         lang=lang,
         lang_detected=lang_detected,
         page_count=len(ocr_pages),

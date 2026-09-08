@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     ocr_lang: str = "es"
     ocr_use_gpu: bool = False
     ocr_pdf_dpi: int = 200
+    # Digital PDFs: read the embedded text layer instead of OCR'ing a render.
+    ocr_pdf_text_layer: bool = True
+    ocr_pdf_text_min_chars: int = 16  # a page with less real text than this is treated as scanned
     tesseract_cmd: str = ""  # path to the tesseract binary; empty -> found on PATH
     ocr_lang_autodetect: bool = False  # when `lang` is omitted, detect it from the OCR text
     ocr_paddle_mkldnn: bool = False  # PaddlePaddle 3.x oneDNN CPU path (buggy on some CPUs)
