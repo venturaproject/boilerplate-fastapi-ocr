@@ -119,6 +119,12 @@ class Settings(BaseSettings):
     ocr_llm_api_key: str = ""  # empty -> llm extractor is a no-op (logs a warning)
     ocr_llm_timeout_seconds: float = 20.0
     ocr_llm_max_tokens: int = 512
+    # Mask email/IBAN/card/DNI/NIE/phone (see services/ocr/redact.py) out of the text
+    # BEFORE it leaves to the external provider. On by default — data minimization
+    # for a third party, independent of DOCUMENT_REDACT_PII (which only controls what
+    # we store). Doesn't touch the target fields themselves (names/refs/quantities
+    # aren't in those patterns) — it can't anonymize what the extraction needs to read.
+    ocr_llm_redact_pii: bool = True
 
     # Sync-endpoint result cache (content-hash keyed, in-process)
     ocr_sync_cache_ttl_seconds: int = 300  # 0 disables

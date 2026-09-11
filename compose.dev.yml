@@ -80,6 +80,7 @@ services:
       OCR_LLM_API_KEY: ${OCR_LLM_API_KEY:-}
       OCR_LLM_TIMEOUT_SECONDS: ${OCR_LLM_TIMEOUT_SECONDS:-20}
       OCR_LLM_MAX_TOKENS: ${OCR_LLM_MAX_TOKENS:-512}
+      OCR_LLM_REDACT_PII: ${OCR_LLM_REDACT_PII:-true}
     volumes:
       - ./backend:/app/backend
       - ./infrastructure:/app/infrastructure
@@ -149,6 +150,7 @@ services:
       OCR_LLM_API_KEY: ${OCR_LLM_API_KEY:-}
       OCR_LLM_TIMEOUT_SECONDS: ${OCR_LLM_TIMEOUT_SECONDS:-20}
       OCR_LLM_MAX_TOKENS: ${OCR_LLM_MAX_TOKENS:-512}
+      OCR_LLM_REDACT_PII: ${OCR_LLM_REDACT_PII:-true}
     volumes:
       - ./backend:/app/backend
       - ./infrastructure:/app/infrastructure

@@ -245,6 +245,15 @@ model doesn't return with confidence is simply omitted (no invented values). Run
 synchronously inside the same worker thread / `OCR_MAX_CONCURRENCY` limiter as OCR inference
 itself — keep `OCR_LLM_TIMEOUT_SECONDS` tight. Add a `doc_type` to `llm.FIELDS` to extend it.
 
+**Third-party exposure**: `OCR_EXTRACTOR=llm` sends OCR text to whatever `OCR_LLM_BASE_URL`
+points at. With `OCR_LLM_REDACT_PII=true` (default) it's passed through the same
+`redact_pii()` as below before it leaves — masks email/IBAN/card/DNI/NIE/phone. That's regex
+over structured identifiers, not real anonymization: free-text names, addresses, etc. are not
+caught, and the fields the extraction is asking for (e.g. `client`) necessarily reach the
+provider — that's the feature. For data that can't leave your infra, point `OCR_LLM_BASE_URL`
+at a self-hosted OpenAI-compatible server (vLLM/Ollama/…) instead, or set `OCR_EXTRACTOR=rules`
+/ `none`. Check the provider's data-retention terms before sending real documents either way.
+
 With `DOCUMENT_REDACT_PII=true` the stored excerpt (`documents.text_excerpt` and the one from
 `/classify`) masks email / national ID / IBAN / phone / card numbers.
 
@@ -360,6 +369,12 @@ when an async job is created and when it's processed.
   - `monthly_page_quota` — monthly page cap; `null`/`0` = `OCR_DEFAULT_MONTHLY_PAGE_QUOTA`
     (0 = unlimited). Once exhausted, `ocr:write` endpoints return `429` with a quota `detail`;
     `ocr:read` keeps working.
+  - `ocr_extractor_override` — `"none"` / `"rules"` / `"llm"`; pins this client's effective
+    `OCR_EXTRACTOR` regardless of the global setting (`null` inherits it). For a tenant whose
+    documents can't leave to a third-party LLM, pin it to `rules`/`none` even while
+    `OCR_EXTRACTOR=llm` elsewhere — enforced for both the sync/`classify` endpoints and async
+    jobs (resolved live per job at processing time, not snapshotted at submission, so an
+    override change also applies to jobs already queued).
 - **Headers** on every OCR response: `X-RateLimit-Limit`, `X-RateLimit-Remaining`,
   `X-RateLimit-Reset`; on quota'd writes, also `X-Quota-Limit` and `X-Quota-Remaining`. The
   `429` keeps `Retry-After`.
@@ -368,13 +383,16 @@ when an async job is created and when it's processed.
 
 ### Panel *(permission `api_clients.manage`)*
 
-- `PATCH /api/v1/api-clients/{id}` — sets `rate_limit` / `monthly_page_quota` (malformed
-  `rate_limit` → `422`).
+- `PATCH /api/v1/api-clients/{id}` — sets `rate_limit` / `monthly_page_quota` /
+  `ocr_extractor_override` (malformed `rate_limit`, or an `ocr_extractor_override` outside
+  `none`/`rules`/`llm`/empty → `422`; empty string clears it back to "inherit global").
 - `GET /api/v1/api-clients/{id}/usage` — same breakdown as `/usage` but for any client.
 - `POST /api/v1/api-clients/{id}/rotate` — generates a new secret (shown **once**) and
   invalidates the previous secret and all its access tokens.
 
 In the panel: **Users → API Clients** ("Limits & usage" column, edit limits, "Rotate secret").
+`ocr_extractor_override` isn't surfaced in that form yet — set it via the API until the UI
+catches up.
 
 ## OCR configuration (`.env`)
 
@@ -402,6 +420,7 @@ In the panel: **Users → API Clients** ("Limits & usage" column, edit limits, "
 | `OCR_LLM_BASE_URL` / `OCR_LLM_MODEL` | NVIDIA NIM / `openai/gpt-oss-120b` | OpenAI-compatible endpoint + model for `OCR_EXTRACTOR=llm` |
 | `OCR_LLM_API_KEY` | *(empty)* | required for `OCR_EXTRACTOR=llm`; empty = no-op (warns) |
 | `OCR_LLM_TIMEOUT_SECONDS` / `OCR_LLM_MAX_TOKENS` | `20` / `512` | LLM request timeout / output cap |
+| `OCR_LLM_REDACT_PII` | `true` | mask email/IBAN/card/DNI/NIE/phone before the text leaves to the LLM provider |
 | `DOCUMENT_REDACT_PII` | `false` | mask email/ID/IBAN/phone/card in the stored excerpt |
 | `DOCUMENT_TEXT_EXCERPT_CHARS` | `500` | chars of OCR text stored in `documents.text_excerpt` (`0` = none) |
 | `DOCUMENT_RETENTION_DAYS` | `0` | age to purge `documents` rows (`0` = keep forever) |

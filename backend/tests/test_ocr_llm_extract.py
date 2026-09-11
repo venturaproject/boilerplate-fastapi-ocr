@@ -165,6 +165,55 @@ def test_boolean_value_is_dropped(monkeypatch):
     assert out.fields["client"].value == "Acme"
 
 
+def _capturing_client(content: str, captured: list):
+    class _Client:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a) -> bool:
+            return False
+
+        def post(self, *a, **kwargs):
+            captured.append(kwargs["json"])
+            return _Resp(200, {"choices": [{"message": {"content": content}}]})
+
+    return _Client
+
+
+def test_pii_is_redacted_before_it_leaves_by_default(monkeypatch):
+    monkeypatch.setattr(settings, "ocr_llm_api_key", "test-key")
+    assert settings.ocr_llm_redact_pii is True  # the default we ship
+
+    captured: list = []
+    monkeypatch.setattr(llm.httpx, "Client", _capturing_client('{"client": "Acme"}', captured))
+
+    text = "Cliente: Acme. Contacto: juan@acme.com, tel 612345678, DNI 12345678Z."
+    llm.extract_fields_llm(text, "delivery_note")
+
+    sent_prompt = captured[0]["messages"][1]["content"]
+    assert "juan@acme.com" not in sent_prompt
+    assert "612345678" not in sent_prompt
+    assert "12345678Z" not in sent_prompt
+    assert "[EMAIL]" in sent_prompt and "[PHONE]" in sent_prompt and "[DNI]" in sent_prompt
+    assert "Acme" in sent_prompt  # the target field itself is not touched
+
+
+def test_pii_redaction_can_be_disabled(monkeypatch):
+    monkeypatch.setattr(settings, "ocr_llm_api_key", "test-key")
+    monkeypatch.setattr(settings, "ocr_llm_redact_pii", False)
+
+    captured: list = []
+    monkeypatch.setattr(llm.httpx, "Client", _capturing_client('{"client": "Acme"}', captured))
+
+    text = "Cliente: Acme. Contacto: juan@acme.com"
+    llm.extract_fields_llm(text, "delivery_note")
+
+    assert "juan@acme.com" in captured[0]["messages"][1]["content"]
+
+
 def test_extract_dispatches_to_llm_mode(monkeypatch):
     from app.schemas.ocr import DocClassification, OcrResult
     from app.services.ocr.extractor import extract

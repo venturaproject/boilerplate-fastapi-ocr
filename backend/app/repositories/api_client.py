@@ -54,11 +54,14 @@ async def update_api_client(
     *,
     rate_limit: str | None = _UNSET,
     monthly_page_quota: int | None = _UNSET,
+    ocr_extractor_override: str | None = _UNSET,
 ) -> ApiClient:
     if rate_limit is not _UNSET:
         client.rate_limit = rate_limit or None
     if monthly_page_quota is not _UNSET:
         client.monthly_page_quota = monthly_page_quota or None
+    if ocr_extractor_override is not _UNSET:
+        client.ocr_extractor_override = ocr_extractor_override or None
     await db.flush()
     return client
 

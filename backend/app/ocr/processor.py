@@ -12,6 +12,7 @@ from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models.ocr_job import OcrJob
 from app.observability import metrics
+from app.repositories import api_client as client_repo
 from app.repositories import client_usage as usage_repo
 from app.repositories import document as document_repo
 from app.repositories import ocr_job as ocr_repo
@@ -48,9 +49,18 @@ async def _process_one(job_id: uuid.UUID) -> None:
         content_type = job.content_type
         filename = job.original_filename
         lang = resolve_lang(job.lang)
+        # Looked up live (not snapshotted at submission) so a tenant's override change
+        # takes effect on jobs still in the queue, not just new ones — the safer default
+        # for a compliance-motivated pin (e.g. an admin urgently flipping a client off "llm").
+        extractor_mode: str | None = None
+        if job.api_client_id is not None:
+            client = await client_repo.get_api_client_by_id(db, job.api_client_id)
+            extractor_mode = client.ocr_extractor_override if client else None
 
     try:
-        result = await run_ocr_file(storage_path, content_type, lang, filename=filename, max_pages=None)
+        result = await run_ocr_file(
+            storage_path, content_type, lang, filename=filename, max_pages=None, extractor_mode=extractor_mode
+        )
     except Exception as exc:
         logger.exception("OCR job %s falló", job_id)
         metrics.record_ocr(mode="async", engine=settings.ocr_engine, status="error")

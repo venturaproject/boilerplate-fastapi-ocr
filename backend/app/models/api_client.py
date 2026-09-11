@@ -21,6 +21,10 @@ class ApiClient(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     rate_limit: Mapped[str | None] = mapped_column(String(20), nullable=True)  # "<n>/<secs>", overrides THROTTLE_OCR
     monthly_page_quota: Mapped[int | None] = mapped_column(Integer, nullable=True)  # None/0 = unlimited
+    # "none"|"rules"|"llm", overrides OCR_EXTRACTOR for this client's requests; None = inherit
+    # the global setting. Lets a tenant that can't have its documents leave to a third-party
+    # LLM be pinned to "rules"/"none" even while OCR_EXTRACTOR=llm elsewhere.
+    ocr_extractor_override: Mapped[str | None] = mapped_column(String(10), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

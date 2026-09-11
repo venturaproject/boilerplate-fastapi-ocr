@@ -95,8 +95,23 @@ def extract_fields(text: str, doc_type: str | None) -> DocExtraction | None:
     return DocExtraction(doc_type=doc_type, fields=fields)
 
 
-def extract(result: OcrResult) -> DocExtraction | None:
-    mode = settings.ocr_extractor
+_VALID_MODES = ("none", "rules", "llm")
+
+
+def resolve_mode(mode_override: str | None) -> str:
+    """`mode_override` (typically an `ApiClient.ocr_extractor_override`) wins when it's a
+    valid mode; otherwise falls back to the global `OCR_EXTRACTOR`. Also used to compute the
+    sync-cache key (`cache.key_for`) so the cache reflects the *effective* mode, not the raw
+    override — two calls that resolve to the same mode share a cache entry even if one came
+    in with an explicit override and the other with `None` inheriting the same global value.
+    """
+    return mode_override if mode_override in _VALID_MODES else settings.ocr_extractor
+
+
+def extract(result: OcrResult, *, mode_override: str | None = None) -> DocExtraction | None:
+    """See `resolve_mode` — an `ApiClient.ocr_extractor_override` (a tenant pinned off `llm`,
+    say) wins over the global setting."""
+    mode = resolve_mode(mode_override)
     if mode == "none":
         return None
     doc_type = result.classification.doc_type if result.classification else None

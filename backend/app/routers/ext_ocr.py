@@ -45,7 +45,9 @@ async def ext_ocr_sync(
     ctx: ExtClientContext = require_ocr("ocr:write"),
 ) -> OcrResult:
     """Synchronous OCR. `?format=json` (default) · `text` · `hocr` · `alto` · `pdf`."""
-    out = await run_sync_ocr(file, lang, fmt=format, api_client_id=ctx.client.id)
+    out = await run_sync_ocr(
+        file, lang, fmt=format, api_client_id=ctx.client.id, extractor_mode=ctx.client.ocr_extractor_override
+    )
     if isinstance(out, FormattedResult):
         return Response(content=out.body, media_type=out.media_type)  # type: ignore[return-value]
     return out
@@ -58,7 +60,9 @@ async def ext_ocr_classify(
     ctx: ExtClientContext = require_ocr("ocr:write"),
 ) -> ClassifyOut:
     """OCR + document-type classification (invoice / cv / payslip / …)."""
-    return await classify_document(file, lang, api_client_id=ctx.client.id)
+    return await classify_document(
+        file, lang, api_client_id=ctx.client.id, extractor_mode=ctx.client.ocr_extractor_override
+    )
 
 
 @router.post("/jobs", status_code=202, dependencies=[_job_size_guard])

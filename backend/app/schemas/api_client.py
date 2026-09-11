@@ -12,6 +12,7 @@ class ApiClientOut(BaseModel):
     active: bool
     rate_limit: str | None = None
     monthly_page_quota: int | None = None
+    ocr_extractor_override: str | None = None
     last_used_at: datetime | None = None
     created_at: datetime
 
@@ -26,6 +27,9 @@ class CreateApiClientRequest(BaseModel):
 class UpdateApiClientRequest(BaseModel):
     rate_limit: str | None = None
     monthly_page_quota: int | None = None
+    # "none" | "rules" | "llm" pins this client regardless of the global OCR_EXTRACTOR;
+    # "" (empty string) clears the override back to "inherit global".
+    ocr_extractor_override: str | None = None
 
 
 class ApiClientUsageOut(BaseModel):

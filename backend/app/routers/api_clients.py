@@ -61,11 +61,16 @@ async def update_api_client(
             int(body.rate_limit.split("/")[0]), int(body.rate_limit.split("/")[1])
         except (ValueError, IndexError):
             raise HTTPException(status_code=422, detail="rate_limit debe ser '<n>/<segundos>'.") from None
+    if body.ocr_extractor_override and body.ocr_extractor_override not in ("none", "rules", "llm"):
+        raise HTTPException(
+            status_code=422, detail="ocr_extractor_override debe ser 'none', 'rules' o 'llm' (o vacío)."
+        )
     client = await client_repo.update_api_client(
         db,
         client,
         rate_limit=body.rate_limit,
         monthly_page_quota=body.monthly_page_quota,
+        ocr_extractor_override=body.ocr_extractor_override,
     )
     await audit_log(
         request,
@@ -74,6 +79,7 @@ async def update_api_client(
         client.name,
         rate_limit=body.rate_limit,
         monthly_page_quota=body.monthly_page_quota,
+        ocr_extractor_override=body.ocr_extractor_override,
     )
     return ApiClientOut.model_validate(client)
 

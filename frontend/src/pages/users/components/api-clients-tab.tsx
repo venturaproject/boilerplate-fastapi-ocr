@@ -24,8 +24,14 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { apiClientsApi, ApiClientRecord, AVAILABLE_SCOPES } from '@/services/api-clients-api'
+import {
+  apiClientsApi,
+  ApiClientRecord,
+  AVAILABLE_SCOPES,
+  OCR_EXTRACTOR_OVERRIDE_OPTIONS,
+} from '@/services/api-clients-api'
 
 const DEFAULT_RATE_LIMIT_HINT = 'p. ej. 30/60 (30 peticiones cada 60 s)'
 
@@ -203,18 +209,24 @@ function CreateDialog({ open, onClose, onCreate, loading }: CreateDialogProps) {
 interface EditLimitsDialogProps {
   client: ApiClientRecord | null
   onClose: () => void
-  onSave: (payload: { rate_limit: string | null; monthly_page_quota: number | null }) => Promise<void>
+  onSave: (payload: {
+    rate_limit: string | null
+    monthly_page_quota: number | null
+    ocr_extractor_override: string | null
+  }) => Promise<void>
   loading: boolean
 }
 
 function EditLimitsDialog({ client, onClose, onSave, loading }: EditLimitsDialogProps) {
   const [rateLimit, setRateLimit] = useState('')
   const [quota, setQuota] = useState('')
+  const [extractorOverride, setExtractorOverride] = useState('')
 
   useEffect(() => {
     if (client) {
       setRateLimit(client.rate_limit ?? '')
       setQuota(client.monthly_page_quota != null ? String(client.monthly_page_quota) : '')
+      setExtractorOverride(client.ocr_extractor_override ?? '')
     }
   }, [client])
 
@@ -232,6 +244,7 @@ function EditLimitsDialog({ client, onClose, onSave, loading }: EditLimitsDialog
     await onSave({
       rate_limit: rl || null,
       monthly_page_quota: q ? Number(q) : null,
+      ocr_extractor_override: extractorOverride || null,
     })
   }
 
@@ -265,6 +278,31 @@ function EditLimitsDialog({ client, onClose, onSave, loading }: EditLimitsDialog
               onChange={(e) => setQuota(e.target.value)}
               placeholder="Sin límite"
             />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="client-extractor-override">Extracción de campos (OCR_EXTRACTOR)</Label>
+            {/* Radix Select can't use "" as an item value, so "" (inherit) maps to the
+                'inherit' sentinel here and back to "" wherever it leaves this component. */}
+            <Select
+              value={extractorOverride || 'inherit'}
+              onValueChange={(v) => setExtractorOverride(v === 'inherit' ? '' : v)}
+            >
+              <SelectTrigger id="client-extractor-override">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {OCR_EXTRACTOR_OVERRIDE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value || 'inherit'} value={opt.value || 'inherit'}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Fija el modo de extracción para este cliente aunque el servidor use otro por
+              defecto — p. ej. mantenlo en «rules» si sus documentos no pueden salir a un
+              proveedor LLM externo.
+            </p>
           </div>
         </div>
 
@@ -331,8 +369,13 @@ export function ApiClientsTab() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { rate_limit: string | null; monthly_page_quota: number | null } }) =>
-      apiClientsApi.update(id, payload),
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string
+      payload: { rate_limit: string | null; monthly_page_quota: number | null; ocr_extractor_override: string | null }
+    }) => apiClientsApi.update(id, payload),
     onSuccess: (_res, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['api-clients'] })
       queryClient.invalidateQueries({ queryKey: ['api-client-usage', id] })
@@ -428,6 +471,11 @@ export function ApiClientsTab() {
 
                     <TableCell>
                       <UsageCell clientId={client.id} />
+                      {client.ocr_extractor_override && (
+                        <Badge variant="outline" className="mt-1 text-xs" title="OCR_EXTRACTOR fijado para este cliente">
+                          extractor: {client.ocr_extractor_override}
+                        </Badge>
+                      )}
                     </TableCell>
 
                     <TableCell>

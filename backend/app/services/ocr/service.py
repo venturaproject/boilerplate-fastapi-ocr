@@ -47,6 +47,7 @@ def _process_sync(
     lang: str,
     lang_explicit: bool = True,
     max_pages: int | None,
+    extractor_mode: str | None = None,
 ) -> OcrResult:
     started = time.perf_counter()
     if data is None:
@@ -104,7 +105,7 @@ def _process_sync(
         processing_ms=elapsed_ms,
     )
     result.classification = classify(result)
-    result.extraction = extract(result)
+    result.extraction = extract(result, mode_override=extractor_mode)
     return result
 
 
@@ -116,6 +117,7 @@ async def run_ocr(
     filename: str | None = None,
     max_pages: int | None = None,
     lang_explicit: bool = True,
+    extractor_mode: str | None = None,
 ) -> OcrResult:
     return await anyio.to_thread.run_sync(
         functools.partial(
@@ -127,6 +129,7 @@ async def run_ocr(
             lang=lang,
             lang_explicit=lang_explicit,
             max_pages=max_pages,
+            extractor_mode=extractor_mode,
         ),
         limiter=_limiter,
     )
@@ -139,6 +142,7 @@ async def run_ocr_file(
     *,
     filename: str | None = None,
     max_pages: int | None = None,
+    extractor_mode: str | None = None,
 ) -> OcrResult:
     """Like `run_ocr` but reads the file inside the worker thread (worker/job path)."""
     return await anyio.to_thread.run_sync(
@@ -150,6 +154,7 @@ async def run_ocr_file(
             filename=filename,
             lang=lang,
             max_pages=max_pages,
+            extractor_mode=extractor_mode,
         ),
         limiter=_limiter,
     )

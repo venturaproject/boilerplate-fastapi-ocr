@@ -20,10 +20,14 @@ _lock = threading.Lock()
 _store: OrderedDict[str, tuple[float, OcrResult]] = OrderedDict()
 
 
-def key_for(data: bytes, lang: str, max_pages: int | None) -> str:
+def key_for(data: bytes, lang: str, max_pages: int | None, extractor_mode: str | None = None) -> str:
     h = hashlib.sha256()
     h.update(data)
-    h.update(f"|{lang}|{max_pages}".encode())
+    # extractor_mode: a per-client override changes what `extraction` comes back in the
+    # cached OcrResult, so it must be part of the key — otherwise two tenants uploading the
+    # same bytes (or the same tenant before/after an admin flips its override) could get
+    # back a result computed under someone else's mode.
+    h.update(f"|{lang}|{max_pages}|{extractor_mode or ''}".encode())
     return h.hexdigest()
 
 

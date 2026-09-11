@@ -29,6 +29,7 @@ from app.schemas.ocr import ClassifyOut, OcrResult
 from app.services.ocr import cache as ocr_cache
 from app.services.ocr import run_ocr
 from app.services.ocr.callback import validate_callback_url
+from app.services.ocr.extractor import resolve_mode as resolve_extractor_mode
 from app.services.ocr.langs import resolve_lang
 from app.services.ocr.loader import SUPPORTED_CONTENT_TYPES, normalize_content_type
 from app.services.ocr.storage import save_upload
@@ -174,7 +175,9 @@ async def _record_processed(
     await _record_usage(api_client_id, pages=result.page_count)
 
 
-async def _sync_ocr(file: UploadFile, lang: str | None) -> tuple[OcrResult, _UploadMeta]:
+async def _sync_ocr(
+    file: UploadFile, lang: str | None, *, extractor_mode: str | None = None
+) -> tuple[OcrResult, _UploadMeta]:
     content_type = _ensure_supported(file)
     resolved_lang = resolve_lang(lang)
     data = await _read_upload(file, max_bytes=settings.ocr_sync_max_bytes)
@@ -187,7 +190,10 @@ async def _sync_ocr(file: UploadFile, lang: str | None) -> tuple[OcrResult, _Upl
         data=data,
     )
 
-    cache_key = ocr_cache.key_for(data, resolved_lang, max_pages)
+    # Keyed by the *resolved* mode, not the raw override: two calls that land on the same
+    # effective mode (e.g. both inheriting the current global OCR_EXTRACTOR) share a cache
+    # entry; two that don't (different overrides, or the global setting changed) don't.
+    cache_key = ocr_cache.key_for(data, resolved_lang, max_pages, resolve_extractor_mode(extractor_mode))
     cached = ocr_cache.get(cache_key)
     if cached is not None:
         return cached.model_copy(update={"cached": True}), meta
@@ -199,6 +205,7 @@ async def _sync_ocr(file: UploadFile, lang: str | None) -> tuple[OcrResult, _Upl
         filename=file.filename,
         max_pages=max_pages,
         lang_explicit=lang is not None,
+        extractor_mode=extractor_mode,
     )
     ocr_cache.put(cache_key, result)
     return result, meta
@@ -211,8 +218,9 @@ async def run_sync_ocr(
     fmt: str = "json",
     api_client_id: uuid.UUID | None = None,
     created_by_user_id: uuid.UUID | None = None,
+    extractor_mode: str | None = None,
 ) -> OcrResult | FormattedResult:
-    result, meta = await _sync_ocr(file, lang)
+    result, meta = await _sync_ocr(file, lang, extractor_mode=extractor_mode)
     await _record_processed(
         Document.MODE_SYNC,
         result,
@@ -249,8 +257,9 @@ async def classify_document(
     *,
     api_client_id: uuid.UUID | None = None,
     created_by_user_id: uuid.UUID | None = None,
+    extractor_mode: str | None = None,
 ) -> ClassifyOut:
-    result, meta = await _sync_ocr(file, lang)
+    result, meta = await _sync_ocr(file, lang, extractor_mode=extractor_mode)
     await _record_processed(
         Document.MODE_CLASSIFY,
         result,

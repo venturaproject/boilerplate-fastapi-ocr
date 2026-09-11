@@ -41,3 +41,23 @@ def test_extract_respects_config(monkeypatch):
     assert extract(result) is None
     monkeypatch.setattr(settings, "ocr_extractor", "rules")
     assert extract(result) is not None
+
+
+def test_extract_mode_override_wins_over_global_setting(monkeypatch):
+    from app.config import settings
+
+    result = OcrResult(
+        engine="fake",
+        lang="es",
+        page_count=1,
+        pages=[],
+        text="Total a pagar 50,00",
+        processing_ms=1,
+        classification=DocClassification(doc_type="invoice", confidence=0.9, scores={}),
+    )
+    monkeypatch.setattr(settings, "ocr_extractor", "rules")
+    # A per-client override pinning it off, even though the global setting says "rules".
+    assert extract(result, mode_override="none") is None
+    # An invalid/unset override falls back to the global setting.
+    assert extract(result, mode_override="not-a-real-mode") is not None
+    assert extract(result, mode_override=None) is not None

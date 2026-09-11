@@ -15,6 +15,15 @@ tight so one slow provider call can't starve the pipeline.
 Deliberately best-effort: any failure (missing key, network, timeout, bad
 JSON, a field the model didn't return) drops the extraction rather than
 raising — same "misses beat wrong values" policy as the rules extractor.
+
+Data minimization: with `OCR_LLM_REDACT_PII` (default on), the text is passed
+through `redact.redact_pii` before it leaves to the provider — masks emails,
+IBANs, card numbers, DNI/NIE, phone numbers. It does NOT anonymize the fields
+we're asking the model to extract (client/product/reference/quantity aren't
+PII patterns) — that data necessarily reaches whichever provider is configured
+in `OCR_LLM_BASE_URL`. For documents where that's not acceptable, either point
+`OCR_LLM_BASE_URL` at a self-hosted model (no data leaves your infra) or set
+`OCR_EXTRACTOR=rules`/`none`.
 """
 
 from __future__ import annotations
@@ -26,6 +35,7 @@ import httpx
 
 from app.config import settings
 from app.schemas.ocr import DocExtraction, DocExtractionField
+from app.services.ocr.redact import redact_pii
 
 logger = logging.getLogger("app.services.ocr")
 
@@ -53,6 +63,8 @@ _SYSTEM_PROMPT = (
 
 def _build_prompt(text: str, fields: dict[str, str]) -> str:
     field_lines = "\n".join(f"- {name}: {desc}" for name, desc in fields.items())
+    if settings.ocr_llm_redact_pii:
+        text = redact_pii(text)  # strip incidental PII before it leaves to the provider
     excerpt = text[:6000]  # bound request size / cost
     return (
         f"Campos a extraer:\n{field_lines}\n\n"

@@ -28,6 +28,29 @@ async def test_patch_rejects_bad_rate_limit(admin_client):
     assert r.status_code == 422
 
 
+async def test_patch_sets_and_clears_ocr_extractor_override(admin_client):
+    created = await _create(admin_client)
+    cid = created["client"]["id"]
+    assert created["client"]["ocr_extractor_override"] is None
+
+    r = await admin_client.patch(f"{BASE}/{cid}", json={"ocr_extractor_override": "rules"})
+    assert r.status_code == 200, r.text
+    assert r.json()["ocr_extractor_override"] == "rules"
+
+    # "" clears it back to "inherit the global OCR_EXTRACTOR"
+    r = await admin_client.patch(f"{BASE}/{cid}", json={"ocr_extractor_override": ""})
+    assert r.status_code == 200, r.text
+    assert r.json()["ocr_extractor_override"] is None
+
+
+async def test_patch_rejects_bad_ocr_extractor_override(admin_client):
+    created = await _create(admin_client)
+    cid = created["client"]["id"]
+
+    r = await admin_client.patch(f"{BASE}/{cid}", json={"ocr_extractor_override": "gpt5"})
+    assert r.status_code == 422
+
+
 async def test_rotate_secret_returns_new_secret_and_revokes_tokens(admin_client, client):
     created = await _create(admin_client)
     cid = created["client"]["id"]

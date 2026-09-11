@@ -9,6 +9,9 @@ export interface ApiClientRecord {
   active: boolean
   rate_limit: string | null
   monthly_page_quota: number | null
+  // "none" | "rules" | "llm" — pins this client's OCR_EXTRACTOR regardless of the global
+  // setting; null inherits it. See README § Quotas, metering and secret rotation.
+  ocr_extractor_override: string | null
   last_used_at: string | null
   created_at: string
 }
@@ -16,7 +19,15 @@ export interface ApiClientRecord {
 export interface UpdateApiClientPayload {
   rate_limit?: string | null
   monthly_page_quota?: number | null
+  ocr_extractor_override?: string | null
 }
+
+export const OCR_EXTRACTOR_OVERRIDE_OPTIONS = [
+  { value: '',      label: 'Heredar del servidor' },
+  { value: 'none',  label: 'none — sin extracción de campos' },
+  { value: 'rules', label: 'rules — reglas locales (sin salida a terceros)' },
+  { value: 'llm',   label: 'llm — proveedor LLM externo' },
+]
 
 export interface ApiClientUsage {
   period: string
