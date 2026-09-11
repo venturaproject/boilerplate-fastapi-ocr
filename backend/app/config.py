@@ -109,6 +109,17 @@ class Settings(BaseSettings):
     # Field extraction (runs on the OCR text, keyed by doc_type)
     ocr_extractor: Literal["none", "rules", "llm"] = "rules"
 
+    # LLM extractor (OCR_EXTRACTOR=llm) — any OpenAI-compatible chat-completions
+    # endpoint (NVIDIA NIM by default; point ocr_llm_base_url elsewhere for OpenAI
+    # itself, a local vLLM/Ollama server, etc). Runs synchronously inside the same
+    # worker thread + ocr_max_concurrency limiter as OCR inference — keep the
+    # timeout tight so one slow provider call can't starve the pipeline.
+    ocr_llm_base_url: str = "https://integrate.api.nvidia.com/v1"
+    ocr_llm_model: str = "meta/llama-3.2-11b-vision-instruct"
+    ocr_llm_api_key: str = ""  # empty -> llm extractor is a no-op (logs a warning)
+    ocr_llm_timeout_seconds: float = 20.0
+    ocr_llm_max_tokens: int = 512
+
     # Sync-endpoint result cache (content-hash keyed, in-process)
     ocr_sync_cache_ttl_seconds: int = 300  # 0 disables
     ocr_sync_cache_max_entries: int = 64

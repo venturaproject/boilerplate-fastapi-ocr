@@ -84,7 +84,8 @@ _RAW_RULES: dict[str, list[tuple[str, float]]] = {
         (r"\balbaran\b", 2.5),
         (r"\b(nota de entrega|nota de envio)\b", 2.0),
         (r"\b(bultos|peso bruto|numero de pedido|referencia de pedido)\b", 1.0),
-        (r"\b(delivery note|packing slip|shipped to|dispatch note)\b", 2.0),
+        (r"\b(delivery note|packing slip)\b", 2.0),
+        (r"\b(shipped to|dispatch note)\b", 1.0),
     ],
     "receipt": [
         (r"\b(recibo|ticket|tique)\b", 1.5),

@@ -72,6 +72,11 @@ services:
       OCR_CALLBACK_BACKOFF_BASE_SECONDS: ${OCR_CALLBACK_BACKOFF_BASE_SECONDS:-60}
       OCR_BATCH_MAX_FILES: ${OCR_BATCH_MAX_FILES:-50}
       OCR_DEFAULT_MONTHLY_PAGE_QUOTA: ${OCR_DEFAULT_MONTHLY_PAGE_QUOTA:-0}
+      OCR_LLM_BASE_URL: ${OCR_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      OCR_LLM_MODEL: ${OCR_LLM_MODEL:-meta/llama-3.2-11b-vision-instruct}
+      OCR_LLM_API_KEY: ${OCR_LLM_API_KEY:-}
+      OCR_LLM_TIMEOUT_SECONDS: ${OCR_LLM_TIMEOUT_SECONDS:-20}
+      OCR_LLM_MAX_TOKENS: ${OCR_LLM_MAX_TOKENS:-512}
     volumes:
       - media_data:/app/backend/media
       - paddle_models:/root/.paddleocr
@@ -129,6 +134,11 @@ services:
       OCR_CALLBACK_BACKOFF_BASE_SECONDS: ${OCR_CALLBACK_BACKOFF_BASE_SECONDS:-60}
       OCR_BATCH_MAX_FILES: ${OCR_BATCH_MAX_FILES:-50}
       OCR_DEFAULT_MONTHLY_PAGE_QUOTA: ${OCR_DEFAULT_MONTHLY_PAGE_QUOTA:-0}
+      OCR_LLM_BASE_URL: ${OCR_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      OCR_LLM_MODEL: ${OCR_LLM_MODEL:-meta/llama-3.2-11b-vision-instruct}
+      OCR_LLM_API_KEY: ${OCR_LLM_API_KEY:-}
+      OCR_LLM_TIMEOUT_SECONDS: ${OCR_LLM_TIMEOUT_SECONDS:-20}
+      OCR_LLM_MAX_TOKENS: ${OCR_LLM_MAX_TOKENS:-512}
     volumes:
       - media_data:/app/backend/media
       - paddle_models:/root/.paddleocr

@@ -11,6 +11,7 @@ import re
 
 from app.config import settings
 from app.schemas.ocr import DocExtraction, DocExtractionField, OcrResult
+from app.services.ocr.llm import extract_fields_llm
 
 # amounts like 1.234,56 / 1,234.56 / 1234.56
 _AMOUNT = r"\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d{2})|\d+[.,]\d{2}"
@@ -94,15 +95,11 @@ def extract_fields(text: str, doc_type: str | None) -> DocExtraction | None:
     return DocExtraction(doc_type=doc_type, fields=fields)
 
 
-def _llm_extract(text: str, doc_type: str | None) -> DocExtraction | None:
-    raise NotImplementedError("OCR_EXTRACTOR=llm requiere un proveedor. Implementa app/services/ocr/llm.py.")
-
-
 def extract(result: OcrResult) -> DocExtraction | None:
     mode = settings.ocr_extractor
     if mode == "none":
         return None
     doc_type = result.classification.doc_type if result.classification else None
     if mode == "llm":
-        return _llm_extract(result.text, doc_type)
+        return extract_fields_llm(result.text, doc_type)
     return extract_fields(result.text, doc_type)

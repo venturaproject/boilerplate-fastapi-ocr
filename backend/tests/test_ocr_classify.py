@@ -77,6 +77,18 @@ def test_classify_payslip():
     assert classify_text(PAYSLIP).doc_type == "payslip"
 
 
+def test_classify_delivery_note_spanish():
+    c = classify_text("ALBARAN DE ENTREGA Nº 4471\nBultos: 3  Peso bruto: 42 kg")
+    assert c.doc_type == "delivery_note"
+
+
+def test_classify_delivery_note_english_packing_slip():
+    # Regression: "packing slip" + "shipped to" used to sit in one combined
+    # rule and only score once, landing under OCR_CLASSIFIER_MIN_SCORE.
+    c = classify_text("PACKING SLIP\nDispatch note #PS-77002\nShipped To: Acme Robotics GmbH")
+    assert c.doc_type == "delivery_note"
+
+
 def test_classify_unknown_for_random_text():
     c = classify_text("the quick brown fox jumps over the lazy dog " * 5)
     assert c.doc_type is None

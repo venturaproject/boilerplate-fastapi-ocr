@@ -237,6 +237,14 @@ structured fields per type — invoice: `total`, `date`, `tax_id`, `invoice_numb
 `/classify` responses, and is stored in `documents.extraction`. Each field carries `value` +
 `raw`.
 
+`OCR_EXTRACTOR=llm` (`app/services/ocr/llm.py`) targets doc types whose layout varies too
+much for regex — currently `delivery_note`: `client`, `product`, `reference`, `quantity`.
+It calls any OpenAI-compatible chat-completions endpoint (`OCR_LLM_BASE_URL`, default NVIDIA
+NIM) with the OCR text and the field list, and parses a strict JSON object back; a field the
+model doesn't return with confidence is simply omitted (no invented values). Runs
+synchronously inside the same worker thread / `OCR_MAX_CONCURRENCY` limiter as OCR inference
+itself — keep `OCR_LLM_TIMEOUT_SECONDS` tight. Add a `doc_type` to `llm.FIELDS` to extend it.
+
 With `DOCUMENT_REDACT_PII=true` the stored excerpt (`documents.text_excerpt` and the one from
 `/classify`) masks email / national ID / IBAN / phone / card numbers.
 
@@ -391,6 +399,9 @@ In the panel: **Users → API Clients** ("Limits & usage" column, edit limits, "
 | `OCR_CLASSIFIER` | `rules` | document type: `rules` · `none` · `ml` · `llm` |
 | `OCR_CLASSIFIER_MIN_SCORE` / `OCR_CLASSIFIER_MIN_CONFIDENCE` | `2.5` / `0.4` | thresholds to assign a type |
 | `OCR_EXTRACTOR` | `rules` | per-type field extraction: `rules` · `none` · `llm` |
+| `OCR_LLM_BASE_URL` / `OCR_LLM_MODEL` | NVIDIA NIM / `openai/gpt-oss-120b` | OpenAI-compatible endpoint + model for `OCR_EXTRACTOR=llm` |
+| `OCR_LLM_API_KEY` | *(empty)* | required for `OCR_EXTRACTOR=llm`; empty = no-op (warns) |
+| `OCR_LLM_TIMEOUT_SECONDS` / `OCR_LLM_MAX_TOKENS` | `20` / `512` | LLM request timeout / output cap |
 | `DOCUMENT_REDACT_PII` | `false` | mask email/ID/IBAN/phone/card in the stored excerpt |
 | `DOCUMENT_TEXT_EXCERPT_CHARS` | `500` | chars of OCR text stored in `documents.text_excerpt` (`0` = none) |
 | `DOCUMENT_RETENTION_DAYS` | `0` | age to purge `documents` rows (`0` = keep forever) |
@@ -456,7 +467,9 @@ the app name changes in the backend `.env`, with no frontend rebuild.
 - `app/ocr/worker.py` + `app/ocr/processor.py` — queue worker (`ocr-worker` service): reclaim
   stuck jobs → claim → OCR → callback → retention purge.
 - `app/services/ocr/langs.py` (language validation), `cache.py` (sync cache), `classifier.py`
-  (rule-based document type; pluggable for ML/LLM later).
+  (rule-based document type; pluggable for ML/LLM later), `extractor.py` + `llm.py`
+  (per-type field extraction: regex rules, or an OpenAI-compatible LLM for types too
+  layout-variable for regex — see [Field extraction](#field-extraction)).
 
 ### Readiness
 
@@ -556,8 +569,9 @@ Left to the deployment:
 
 Ordered by value/effort:
 
-1. *(done)* **Per-type field extraction** (`OCR_EXTRACTOR=rules`) — an `llm` backend with a
-   real provider is missing.
+1. *(done)* **Per-type field extraction** (`OCR_EXTRACTOR=rules`) — plus an `llm` backend
+   (`delivery_note`: client/product/reference/quantity) against an OpenAI-compatible
+   endpoint, for doc types too layout-variable for regex.
 2. *(done)* **Pluggable storage** `STORAGE_BACKEND=local|s3` — `S3Storage` (boto3, extra
    `s3`) decouples the worker from the shared disk.
 3. *(done)* **Observability** — `GET /metrics` Prometheus + per-line logs (`LOG_FORMAT=json`)
